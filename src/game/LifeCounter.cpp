@@ -10,8 +10,7 @@
 
 // ---- lifecycle ------------------------------------------------------------
 
-void LifeCounter::begin(lv_obj_t* parent, FlashManager* flash,
-                        bool isP2, bool flipped) {
+void LifeCounter::begin(lv_obj_t* parent, FlashManager* flash, bool isP2, bool flipped) {
   _parent = parent;
   _flash = flash;
   _isP2 = isP2;
@@ -108,8 +107,10 @@ bool LifeCounter::beginUndoPending() {
   if (_deltaLbl && _bundleOrigin >= 0) {
     const int restore = _bundleOrigin - _value;
     char buf[8];
-    if (restore >= 0) snprintf(buf, sizeof(buf), "+%d", restore);
-    else snprintf(buf, sizeof(buf), "%d", restore);
+    if (restore >= 0)
+      snprintf(buf, sizeof(buf), "+%d", restore);
+    else
+      snprintf(buf, sizeof(buf), "%d", restore);
     lv_label_set_text(_deltaLbl, buf);
     lv_obj_set_style_bg_color(_deltaLbl, COLOR_MENU_ORANGE, 0);
     lv_obj_remove_flag(_deltaLbl, LV_OBJ_FLAG_HIDDEN);
@@ -155,7 +156,13 @@ void LifeCounter::reset(bool countUpMode) {
 
   _resetFrom = countUpMode ? _baseLife : LIFE_MIN;
   _resetTo = countUpMode ? LIFE_MIN : _baseLife;
+
+  // First visible frame must start at the animation start value.
+  _value = _resetFrom;
+  refreshLabel();
+
   _resetStartAt = Clock::now();
+  _resetLastStepAt = _resetStartAt;
   _resetActive = true;
 }
 
@@ -195,8 +202,10 @@ void LifeCounter::useFont(const lv_font_t* f) {
 void LifeCounter::setVisible(bool visible) {
   auto setHide = [](lv_obj_t* o, bool hide) {
     if (!o) return;
-    if (hide) lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
-    else lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
+    if (hide)
+      lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
+    else
+      lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
   };
   setHide(_label, !visible);
   setHide(_baseLbl, !visible);
@@ -236,7 +245,11 @@ void LifeCounter::updateDelta(uint32_t now) {
       const float decay = 1.0f - t;
       const float angle = t * 2.0f * 2.0f * PI;  // 2 oscillations
       const int dx = (int)lroundf(sinf(angle) * LIFE_BUMP_SHAKE_AMP * decay);
-      lv_obj_set_style_translate_x(_label, dx, 0);
+
+      // LVGL can leave a grey redraw artifact with a 180° rotated label
+      // when translate_x is animated. P2 is already flipped, so keep the
+      // rejected-input feedback as opacity/grey only.
+      lv_obj_set_style_translate_x(_label, _flipped ? 0 : dx, 0);
 
       // Subtle opacity dip — peaks at mid-duration.
       const uint32_t half = LIFE_BUMP_MS / 2;
@@ -256,21 +269,25 @@ void LifeCounter::updateDelta(uint32_t now) {
 
   // ---- 3. reset celebration ----
   if (_resetActive) {
-    const uint32_t elapsed = now - _resetStartAt;
-    if (elapsed >= LIFE_RESET_ANIM_MS) {
-      _resetActive = false;
-      _value = _resetTo;
+    if (now - _resetLastStepAt >= LIFE_RESET_STEP_MS) {
+      _resetLastStepAt = now;
+
+      if (_resetTo > _value) {
+        _value++;
+      } else if (_resetTo < _value) {
+        _value--;
+      }
+
       refreshLabel();
-    } else {
-      // Ease-out (1 - (1-t)^2) for a snappy-then-settle feel.
-      const float t = (float)elapsed / (float)LIFE_RESET_ANIM_MS;
-      const float ease = 1.0f - (1.0f - t) * (1.0f - t);
-      const int v = _resetFrom + (int)lroundf((_resetTo - _resetFrom) * ease);
-      if (v != _value) {
-        _value = v;
-        refreshLabel();
+
+      // Finish only when the counter actually reached the target.
+      // Do not force-jump to max based on elapsed time.
+      if (_value == _resetTo) {
+        _resetActive = false;
       }
     }
+
+    return;
   }
 
   // ---- 4. low-HP pulse ----
@@ -353,8 +370,10 @@ void LifeCounter::repositionSubLabels(int ox) {
 void LifeCounter::showDelta(int accDelta) {
   if (!_deltaLbl) return;
   char buf[8];
-  if (accDelta > 0) snprintf(buf, sizeof(buf), "+%d", accDelta);
-  else snprintf(buf, sizeof(buf), "%d", accDelta);
+  if (accDelta > 0)
+    snprintf(buf, sizeof(buf), "+%d", accDelta);
+  else
+    snprintf(buf, sizeof(buf), "%d", accDelta);
   lv_label_set_text(_deltaLbl, buf);
   // Badge colour follows "did this heal or damage us?", same flip as flash.
   const bool isHealing = _countUp ? (accDelta < 0) : (accDelta > 0);
@@ -387,8 +406,7 @@ lv_color_t LifeCounter::zoneColor(int distance) const {
 // LIFE_PULSE_PERIOD_MS. Cancels itself cleanly when the zone changes.
 void LifeCounter::updatePulse(uint32_t now) {
   const int d = distanceToDefeat();
-  const bool inRedZone =
-    d > 0 && d <= LIFE_ZONE_RED_MAX && !_undoPending && !_bumpActive && !_resetActive;
+  const bool inRedZone = d > 0 && d <= LIFE_ZONE_RED_MAX && !_undoPending && !_bumpActive && !_resetActive;
 
   if (!inRedZone) {
     if (_pulsing) {
@@ -403,8 +421,7 @@ void LifeCounter::updatePulse(uint32_t now) {
   const uint32_t half = LIFE_PULSE_PERIOD_MS / 2;
   const uint32_t t = phase < half ? phase : (LIFE_PULSE_PERIOD_MS - phase);
   // Map t in [0..half] to opacity in [MIN..COVER].
-  const uint8_t opa =
-    LIFE_PULSE_OPA_MIN + (uint8_t)(((LV_OPA_COVER - LIFE_PULSE_OPA_MIN) * t) / half);
+  const uint8_t opa = LIFE_PULSE_OPA_MIN + (uint8_t)(((LV_OPA_COVER - LIFE_PULSE_OPA_MIN) * t) / half);
   lv_obj_set_style_text_opa(_label, opa, 0);
 }
 
@@ -415,8 +432,7 @@ void LifeCounter::refreshLabel() {
   const bool defeated = (distance == 0);
 
   // ---- main counter ----
-  lv_color_t mainColor =
-    _undoPending ? COLOR_VALUE_GREY : zoneColor(distance);
+  lv_color_t mainColor = _undoPending ? COLOR_VALUE_GREY : zoneColor(distance);
   lv_obj_set_style_text_color(_label, mainColor, 0);
   lv_label_set_text_fmt(_label, "%d", _value);
 
@@ -460,10 +476,10 @@ void LifeCounter::refreshLabel() {
   } else {
     snprintf(buf, sizeof(buf), "%d/%d", damage, _baseLife);
     // Dim grey for the normal zone, escalate with the main counter.
-    lv_color_t subColor =
-      defeated ? COLOR_MINUS : (distance <= LIFE_ZONE_RED_MAX)    ? COLOR_MINUS
-                             : (distance <= LIFE_ZONE_YELLOW_MAX) ? COLOR_BAT_YELLOW
-                                                                  : COLOR_VALUE_GREY;
+    lv_color_t subColor = defeated                             ? COLOR_MINUS
+                          : (distance <= LIFE_ZONE_RED_MAX)    ? COLOR_MINUS
+                          : (distance <= LIFE_ZONE_YELLOW_MAX) ? COLOR_BAT_YELLOW
+                                                               : COLOR_VALUE_GREY;
     lv_obj_set_style_text_color(_baseLbl, subColor, 0);
   }
   lv_label_set_text(_baseLbl, buf);

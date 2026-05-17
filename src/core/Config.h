@@ -156,7 +156,8 @@ constexpr int LIFE_BUMP_SHAKE_AMP = 12;  // px — strong, unambiguous wobble
 
 // Reset celebration: animate from 0 to target value (or target to 0
 // for count-up) over this duration when resetBoth() fires.
-constexpr uint32_t LIFE_RESET_ANIM_MS = 320;
+constexpr uint32_t LIFE_RESET_ANIM_MS = 900;
+constexpr uint32_t LIFE_RESET_STEP_MS = 26;
 
 // ==============================================================
 // Defeat overlay
@@ -183,7 +184,7 @@ constexpr uint32_t LOOP_DELAY_MS = 5;
 // from electrical jitter or library quirks.
 constexpr uint32_t TOUCH_COOLDOWN_MS = 40;
 
-constexpr uint32_t CENTER_HOLD_MS = 850;         // soft timer before menu opens
+constexpr uint32_t CENTER_HOLD_MS = 450;         // soft timer before menu opens
 constexpr uint32_t RESET_HOLD_MS = 800;          // hold time to confirm a reset
 constexpr uint32_t MENU_RELEASE_GRACE_MS = 450;  // fallback when raw I2C touch read fails
 constexpr uint32_t MENU_DWELL_REVEAL_MS = 900;
@@ -231,12 +232,13 @@ constexpr uint8_t backlightPercentToLevel(int pct) {
   return (uint8_t)(BACKLIGHT_MIN_LEVEL + (BACKLIGHT_MAX_LEVEL - BACKLIGHT_MIN_LEVEL) * pct / 100);
 }
 constexpr int backlightLevelToPercent(uint8_t level) {
-  return (level <= BACKLIGHT_MIN_LEVEL)   ? 0
-         : (level >= BACKLIGHT_MAX_LEVEL) ? 100
-                                          : ((int)level - BACKLIGHT_MIN_LEVEL) * 100 / (BACKLIGHT_MAX_LEVEL - BACKLIGHT_MIN_LEVEL);
+  return (level <= BACKLIGHT_MIN_LEVEL) ? 0
+         : (level >= BACKLIGHT_MAX_LEVEL)
+             ? 100
+             : ((int)level - BACKLIGHT_MIN_LEVEL) * 100 / (BACKLIGHT_MAX_LEVEL - BACKLIGHT_MIN_LEVEL);
 }
 
-constexpr int BRIGHTNESS_STEPS[] = { 0, 25, 50, 75, 100 };
+constexpr int BRIGHTNESS_STEPS[] = {0, 25, 50, 75, 100};
 constexpr int BRIGHTNESS_STEP_COUNT = sizeof(BRIGHTNESS_STEPS) / sizeof(BRIGHTNESS_STEPS[0]);
 constexpr int BRIGHTNESS_STEP_TICK_SIZE = 8;
 
@@ -370,8 +372,10 @@ inline PolarHit polarFromCenter(int x, int y) {
 }
 
 inline float normalizeDeg(float deg) {
-  while (deg < 0.0f) deg += 360.0f;
-  while (deg >= 360.0f) deg -= 360.0f;
+  while (deg < 0.0f)
+    deg += 360.0f;
+  while (deg >= 360.0f)
+    deg -= 360.0f;
   return deg;
 }
 
@@ -387,8 +391,8 @@ inline float absAngleDiff(float a, float b) {
 // On a fresh power-on the RTC section is zero-initialised, so
 // `lastSleepReason == None` naturally means "this is a cold boot".
 enum class SleepReason : uint8_t {
-  None        = 0,  // never slept (cold-boot default)
-  Manual      = 1,  // user picked Sleep from the radial menu
+  None = 0,         // never slept (cold-boot default)
+  Manual = 1,       // user picked Sleep from the radial menu
   IdleTimeout = 2,  // backlight idle chain reached DEEP_SLEEP_MS
 };
 

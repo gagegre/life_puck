@@ -128,7 +128,7 @@ threshold within the overlay's animation also dismisses it.
 
 ## Radial Menu
 
-Open by holding the centre of the screen for `CENTER_HOLD_MS` (~0.85 s).
+Open by holding the centre of the screen for `CENTER_HOLD_MS` (~0.45 s).
 The radial menu is the only settings UI; there is no separate settings
 screen.
 
@@ -412,7 +412,7 @@ All user-tuneable values are `constexpr` in `Config.h`.
 | Constant | Default | Effect |
 |---|---|---|
 | `STARTING_LIFE` | 30 | Starting life total (overridable via Base-life selector) |
-| `CENTER_HOLD_MS` | 850 ms | How long to hold the centre before the menu opens |
+| `CENTER_HOLD_MS` | 450 ms | How long to hold the centre before the menu opens |
 | `RESET_HOLD_MS` | 800 ms | Hold time to confirm a shake-triggered reset |
 | `SHAKE_THRESHOLD` | 1.6 g | Per-axis delta-g that counts as one swing direction |
 | `SHAKE_REVERSALS_REQUIRED` | 4 | Number of direction reversals needed within the window. A single pickup creates at most one reversal, so it cannot trigger a reset. |

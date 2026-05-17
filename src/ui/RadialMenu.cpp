@@ -24,18 +24,30 @@
 
 const char* iconForAction(MenuAction a, const GameState& g) {
   switch (a) {
-    case MenuAction::PLAYER_TOGGLE: return g.twoPlayer ? FA_ICON_VERSUS : FA_ICON_SINGLE;
-    case MenuAction::COUNT_DIRECTION: return g.countUp ? FA_ICON_COUNT_UP : FA_ICON_COUNT_DOWN;
-    case MenuAction::BATTERY: return FA_ICON_BATTERY_THREE_QUARTERS;
-    case MenuAction::BRIGHTNESS: return FA_ICON_BRIGHTNESS;
-    case MenuAction::SLEEP: return FA_ICON_POWER;
-    case MenuAction::SET_1P: return FA_ICON_SINGLE;
-    case MenuAction::SET_2P: return FA_ICON_VERSUS;
-    case MenuAction::COUNT_DOWN: return FA_ICON_COUNT_DOWN;
-    case MenuAction::COUNT_UP: return FA_ICON_COUNT_UP;
-    case MenuAction::SLEEP_OFF: return FA_ICON_POWER;
-    case MenuAction::BASE_SELECTOR: return FA_ICON_BASE_LIFE;
-    default: return "";
+    case MenuAction::PLAYER_TOGGLE:
+      return g.twoPlayer ? FA_ICON_VERSUS : FA_ICON_SINGLE;
+    case MenuAction::COUNT_DIRECTION:
+      return g.countUp ? FA_ICON_COUNT_UP : FA_ICON_COUNT_DOWN;
+    case MenuAction::BATTERY:
+      return FA_ICON_BATTERY_THREE_QUARTERS;
+    case MenuAction::BRIGHTNESS:
+      return FA_ICON_BRIGHTNESS;
+    case MenuAction::SLEEP:
+      return FA_ICON_POWER;
+    case MenuAction::SET_1P:
+      return FA_ICON_SINGLE;
+    case MenuAction::SET_2P:
+      return FA_ICON_VERSUS;
+    case MenuAction::COUNT_DOWN:
+      return FA_ICON_COUNT_DOWN;
+    case MenuAction::COUNT_UP:
+      return FA_ICON_COUNT_UP;
+    case MenuAction::SLEEP_OFF:
+      return FA_ICON_POWER;
+    case MenuAction::BASE_SELECTOR:
+      return FA_ICON_BASE_LIFE;
+    default:
+      return "";
   }
 }
 
@@ -112,7 +124,7 @@ void CentreLabel::bringToFront() {
 class MenuView {
 public:
   explicit MenuView(MenuHost* host)
-    : _host(host) {}
+      : _host(host) {}
   virtual ~MenuView() = default;
 
   virtual void build() = 0;
@@ -158,8 +170,7 @@ void placeRadial(lv_obj_t* obj, float deg) {
   lv_obj_align(obj, LV_ALIGN_CENTER, dx, dy);
 }
 
-lv_obj_t* makeRingSegment(lv_obj_t* parent, float degStart, float degEnd,
-                          lv_color_t color) {
+lv_obj_t* makeRingSegment(lv_obj_t* parent, float degStart, float degEnd, lv_color_t color) {
   lv_obj_t* arc = lv_arc_create(parent);
   lv_obj_set_size(arc, SCREEN_W, SCREEN_H);
   lv_obj_center(arc);
@@ -205,21 +216,19 @@ public:
   static constexpr float TOP_DEG = 270.0f;  // 12 o'clock in LVGL frame
 
   void build() override {
-    static const MenuAction kActions[MENU_ACTION_COUNT] = {
-      MenuAction::PLAYER_TOGGLE,
-      MenuAction::COUNT_DIRECTION,
-      MenuAction::BATTERY,
-      MenuAction::BRIGHTNESS,
-      MenuAction::SLEEP,
-      MenuAction::BASE_SELECTOR
-    };
+    static const MenuAction kActions[MENU_ACTION_COUNT] = {MenuAction::PLAYER_TOGGLE,
+                                                           MenuAction::COUNT_DIRECTION,
+                                                           MenuAction::BATTERY,
+                                                           MenuAction::BRIGHTNESS,
+                                                           MenuAction::SLEEP,
+                                                           MenuAction::BASE_SELECTOR};
     static const lv_color_t kColors[MENU_ACTION_COUNT] = {
-      COLOR_MENU_BLUE,
-      COLOR_MENU_ORANGE,
-      COLOR_MENU_PINK,
-      COLOR_MENU_YELLOW,
-      COLOR_MENU_SLEEP,
-      COLOR_MENU_ORANGE  // BASE_SELECTOR
+        COLOR_MENU_BLUE,
+        COLOR_MENU_ORANGE,
+        COLOR_MENU_PINK,
+        COLOR_MENU_YELLOW,
+        COLOR_MENU_SLEEP,
+        COLOR_MENU_ORANGE  // BASE_SELECTOR
     };
 
     for (uint8_t i = 0; i < MENU_ACTION_COUNT; ++i) {
@@ -340,7 +349,8 @@ public:
       case MenuAction::BASE_SELECTOR:
         _host->requestView(4);  // VIEW_BASE_SELECTOR
         return false;           // keep menu open
-      default: break;
+      default:
+        break;
     }
     return true;
   }
@@ -379,10 +389,8 @@ private:
     for (auto& s : _segs) {
       const bool on = (s.action == _hovered);
       lv_obj_set_style_arc_opa(s.arc, LV_OPA_90, LV_PART_MAIN);
-      lv_obj_set_style_arc_opa(s.arc,
-                               on ? LV_OPA_COVER : LV_OPA_TRANSP, LV_PART_INDICATOR);
-      lv_obj_set_style_text_color(s.iconLbl,
-                                  on ? s.color : COLOR_FG, 0);
+      lv_obj_set_style_arc_opa(s.arc, on ? LV_OPA_COVER : LV_OPA_TRANSP, LV_PART_INDICATOR);
+      lv_obj_set_style_text_color(s.iconLbl, on ? s.color : COLOR_FG, 0);
     }
   }
 
@@ -398,20 +406,15 @@ private:
               g.twoPlayer ? UiText::VERSUS : UiText::SINGLE);
         break;
       case MenuAction::COUNT_DIRECTION:
-        c.set(iconForAction(MenuAction::COUNT_DIRECTION, g),
-              UiText::COUNT,
-              g.countUp ? UiText::UP : UiText::DOWN);
+        c.set(iconForAction(MenuAction::COUNT_DIRECTION, g), UiText::COUNT, g.countUp ? UiText::UP : UiText::DOWN);
         break;
-      case MenuAction::BATTERY:
-        {
-          Battery& b = _host->battery();
-          char pctBuf[8], voltBuf[16];
-          snprintf(pctBuf, sizeof(pctBuf), "%d%%", b.percent());
-          snprintf(voltBuf, sizeof(voltBuf), "%.2fV%s",
-                   b.volts(), b.isCharging() ? " +" : "");
-          c.set(FA_ICON_BATTERY_THREE_QUARTERS, pctBuf, voltBuf);
-        }
-        break;
+      case MenuAction::BATTERY: {
+        Battery& b = _host->battery();
+        char pctBuf[8], voltBuf[16];
+        snprintf(pctBuf, sizeof(pctBuf), "%d%%", b.percent());
+        snprintf(voltBuf, sizeof(voltBuf), "%.2fV%s", b.volts(), b.isCharging() ? " +" : "");
+        c.set(FA_ICON_BATTERY_THREE_QUARTERS, pctBuf, voltBuf);
+      } break;
       case MenuAction::BRIGHTNESS:
         snprintf(buf, sizeof(buf), "%d%%", _host->backlight().asPercent());
         c.set(FA_ICON_BRIGHTNESS, UiText::BRIGHTNESS, buf);
@@ -419,16 +422,14 @@ private:
       case MenuAction::SLEEP:
         c.set(FA_ICON_POWER, UiText::SLEEP, "");
         break;
-      case MenuAction::BASE_SELECTOR:
-        {
-          char baseBuf[16];
-          if (g.twoPlayer)
-            snprintf(baseBuf, sizeof(baseBuf), "%d | %d", g.baseLife1, g.baseLife2);
-          else
-            snprintf(baseBuf, sizeof(baseBuf), "%d", g.baseLife1);
-          c.set(FA_ICON_BASE_LIFE, UiText::BASE_LIFE, baseBuf);
-        }
-        break;
+      case MenuAction::BASE_SELECTOR: {
+        char baseBuf[16];
+        if (g.twoPlayer)
+          snprintf(baseBuf, sizeof(baseBuf), "%d | %d", g.baseLife1, g.baseLife2);
+        else
+          snprintf(baseBuf, sizeof(baseBuf), "%d", g.baseLife1);
+        c.set(FA_ICON_BASE_LIFE, UiText::BASE_LIFE, baseBuf);
+      } break;
       case MenuAction::NONE:
       default:
         c.clear();
@@ -513,8 +514,8 @@ public:
 
 private:
   RingSegment _segs[MAX_SEGS];
-  MenuAction _values[MAX_SEGS] = { MenuAction::NONE, MenuAction::NONE, MenuAction::NONE };
-  float _centres[MAX_SEGS] = { 0.0f, 0.0f, 0.0f };
+  MenuAction _values[MAX_SEGS] = {MenuAction::NONE, MenuAction::NONE, MenuAction::NONE};
+  float _centres[MAX_SEGS] = {0.0f, 0.0f, 0.0f};
   uint8_t _count = 0;
   float _segDeg = 360.0f;
   int _hoverIdx = -1;
@@ -589,10 +590,8 @@ private:
       if (i >= _count) continue;
       const bool active = ((int)i == _hoverIdx);
       lv_obj_set_style_arc_opa(_segs[i].arc, LV_OPA_90, LV_PART_MAIN);
-      lv_obj_set_style_arc_opa(_segs[i].arc,
-                               active ? LV_OPA_COVER : LV_OPA_TRANSP, LV_PART_INDICATOR);
-      lv_obj_set_style_text_color(_segs[i].iconLbl,
-                                  active ? _segs[i].color : COLOR_FG, 0);
+      lv_obj_set_style_arc_opa(_segs[i].arc, active ? LV_OPA_COVER : LV_OPA_TRANSP, LV_PART_INDICATOR);
+      lv_obj_set_style_text_color(_segs[i].iconLbl, active ? _segs[i].color : COLOR_FG, 0);
     }
   }
 
@@ -623,11 +622,9 @@ private:
 
     const MenuAction v = _values[idx];
     if (target == MenuAction::PLAYER_TOGGLE) {
-      c.set(iconForAction(v, g), UiText::PLAYERS,
-            (v == MenuAction::SET_2P) ? UiText::VERSUS : UiText::SINGLE);
+      c.set(iconForAction(v, g), UiText::PLAYERS, (v == MenuAction::SET_2P) ? UiText::VERSUS : UiText::SINGLE);
     } else if (target == MenuAction::COUNT_DIRECTION) {
-      c.set(iconForAction(v, g), UiText::COUNT,
-            (v == MenuAction::COUNT_UP) ? UiText::UP : UiText::DOWN);
+      c.set(iconForAction(v, g), UiText::COUNT, (v == MenuAction::COUNT_UP) ? UiText::UP : UiText::DOWN);
     } else if (target == MenuAction::SLEEP) {
       c.set(FA_ICON_POWER, UiText::SLEEP, UiText::BATTERY_HIDE);
     }
@@ -648,14 +645,12 @@ public:
   void build() override {
     // Icons mirror eye-visibility metaphor: slash=off, auto=smart, open=always.
     static const char* const kIcons[SEG_COUNT] = {
-      FA_ICON_HIDE_MODE,  // HIDE
-      FA_ICON_AUTO_MODE,  // AUTO
-      FA_ICON_SHOW_MODE,  // SHOW / ALWAYS
-      FA_ICON_PERCENTAGE  // SHOW % toggle
+        FA_ICON_HIDE_MODE,  // HIDE
+        FA_ICON_AUTO_MODE,  // AUTO
+        FA_ICON_SHOW_MODE,  // SHOW / ALWAYS
+        FA_ICON_PERCENTAGE  // SHOW % toggle
     };
-    static const lv_color_t kColors[SEG_COUNT] = {
-      COLOR_BATTERY_HIDE, COLOR_MENU_PINK, COLOR_PLUS, COLOR_BAT_YELLOW
-    };
+    static const lv_color_t kColors[SEG_COUNT] = {COLOR_BATTERY_HIDE, COLOR_MENU_PINK, COLOR_PLUS, COLOR_BAT_YELLOW};
     const float segDeg = 360.0f / SEG_COUNT;
     for (uint8_t i = 0; i < SEG_COUNT; ++i) {
       const float a0 = START_DEG + i * segDeg;
@@ -771,14 +766,11 @@ private:
 
   void renderCentre(int idx) {
     CentreLabel& c = _host->centre();
-    static const char* const kModeIcons[3] = {
-      FA_ICON_HIDE_MODE, FA_ICON_AUTO_MODE, FA_ICON_SHOW_MODE
-    };
-    static const char* const kModeNames[3] = {
-      UiText::BATTERY_HIDE, UiText::BATTERY_AUTO, UiText::BATTERY_SHOW
-    };
+    static const char* const kModeIcons[3] = {FA_ICON_HIDE_MODE, FA_ICON_AUTO_MODE, FA_ICON_SHOW_MODE};
+    static const char* const kModeNames[3] = {UiText::BATTERY_HIDE, UiText::BATTERY_AUTO, UiText::BATTERY_SHOW};
     if (idx == 3) {
-      c.set(FA_ICON_PERCENTAGE, UiText::SHOW_PERCENT,
+      c.set(FA_ICON_PERCENTAGE,
+            UiText::SHOW_PERCENT,
             _host->battery().isShowingPercent() ? UiText::STATE_ENABLED : UiText::STATE_DISABLED);
     } else if (idx >= 0 && idx < 3) {
       c.set(kModeIcons[idx], UiText::BATTERY, kModeNames[idx]);
@@ -921,8 +913,10 @@ private:
     constexpr int count = sizeof(BRIGHTNESS_STEPS) / sizeof(BRIGHTNESS_STEPS[0]);
     for (int i = 0; i < count; ++i) {
       if (!_ticks[i]) continue;
-      if (show) lv_obj_remove_flag(_ticks[i], LV_OBJ_FLAG_HIDDEN);
-      else lv_obj_add_flag(_ticks[i], LV_OBJ_FLAG_HIDDEN);
+      if (show)
+        lv_obj_remove_flag(_ticks[i], LV_OBJ_FLAG_HIDDEN);
+      else
+        lv_obj_add_flag(_ticks[i], LV_OBJ_FLAG_HIDDEN);
     }
   }
 
@@ -1156,8 +1150,10 @@ private:
   void showTicks(lv_obj_t** arr, bool show) {
     for (int i = 0; i < VAL_COUNT; ++i) {
       if (!arr[i]) continue;
-      if (show) lv_obj_remove_flag(arr[i], LV_OBJ_FLAG_HIDDEN);
-      else lv_obj_add_flag(arr[i], LV_OBJ_FLAG_HIDDEN);
+      if (show)
+        lv_obj_remove_flag(arr[i], LV_OBJ_FLAG_HIDDEN);
+      else
+        lv_obj_add_flag(arr[i], LV_OBJ_FLAG_HIDDEN);
     }
   }
 
@@ -1223,8 +1219,7 @@ private:
 // RadialMenu implementation
 // ==============================================================
 
-void RadialMenu::begin(lv_obj_t* parent, GameState* state, GameUi* ui,
-                       Backlight* backlight, Battery* battery) {
+void RadialMenu::begin(lv_obj_t* parent, GameState* state, GameUi* ui, Backlight* backlight, Battery* battery) {
   _gameState = state;
   _gameUi = ui;
   _backlight = backlight;
@@ -1311,8 +1306,7 @@ void RadialMenu::markFingerStillDown() {
 
 RadialMenu::LiftResult RadialMenu::notifyFingerLifted(bool releaseConfirmed) {
   if (!_open || !_fingerDown) return LiftResult::NOTHING;
-  if (!releaseConfirmed && !Clock::elapsed(_lastFingerSeenAt, MENU_RELEASE_GRACE_MS))
-    return LiftResult::NOTHING;
+  if (!releaseConfirmed && !Clock::elapsed(_lastFingerSeenAt, MENU_RELEASE_GRACE_MS)) return LiftResult::NOTHING;
 
   const bool shouldClose = currentView()->onLift();
   _fingerDown = false;
@@ -1368,12 +1362,17 @@ void RadialMenu::requestClose() {
 
 MenuView* RadialMenu::currentView() {
   switch (_currentView) {
-    case VIEW_CHOICE: return _viewChoice;
-    case VIEW_BATTERY: return _viewBattery;
-    case VIEW_BRIGHTNESS: return _viewBrightness;
-    case VIEW_BASE_SELECTOR: return _viewBaseSelector;
+    case VIEW_CHOICE:
+      return _viewChoice;
+    case VIEW_BATTERY:
+      return _viewBattery;
+    case VIEW_BRIGHTNESS:
+      return _viewBrightness;
+    case VIEW_BASE_SELECTOR:
+      return _viewBaseSelector;
     case VIEW_TOP:
-    default: return _viewTop;
+    default:
+      return _viewTop;
   }
 }
 

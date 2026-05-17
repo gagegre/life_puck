@@ -36,17 +36,17 @@ LV_FONT_DECLARE(font_awesome_intro_characters);
 namespace {
 
 // ---- palette ---------------------------------------------------------------
-const lv_color_t C_BLACK       = lv_color_hex(0x000000);
-const lv_color_t C_CORE        = lv_color_hex(0xE8F6FF);  // bright white, crisp inner lines
-const lv_color_t C_GLOW        = lv_color_hex(0x69C9FF);  // soft blue halo
-const lv_color_t C_DIM         = lv_color_hex(0x2C5F82);
+const lv_color_t C_BLACK = lv_color_hex(0x000000);
+const lv_color_t C_CORE = lv_color_hex(0xE8F6FF);  // bright white, crisp inner lines
+const lv_color_t C_GLOW = lv_color_hex(0x69C9FF);  // soft blue halo
+const lv_color_t C_DIM = lv_color_hex(0x2C5F82);
 const lv_color_t C_LAUNCH_CORE = lv_color_hex(0xFF3344);  // red engine core
 const lv_color_t C_LAUNCH_GLOW = lv_color_hex(0xC1121F);  // red engine glow
-const lv_color_t C_LAUNCH_DIM  = lv_color_hex(0x5A0810);
-const lv_color_t C_BOBA        = lv_color_hex(0x7BCB78);
-const lv_color_t C_LEA         = lv_color_hex(0xF4F8FF);
-const lv_color_t C_VADER       = lv_color_hex(0xFF4C54);
-const lv_color_t C_R2          = lv_color_hex(0x5BBEFF);
+const lv_color_t C_LAUNCH_DIM = lv_color_hex(0x5A0810);
+const lv_color_t C_BOBA = lv_color_hex(0x7BCB78);
+const lv_color_t C_LEA = lv_color_hex(0xF4F8FF);
+const lv_color_t C_VADER = lv_color_hex(0xFF4C54);
+const lv_color_t C_R2 = lv_color_hex(0x5BBEFF);
 
 // ---- math helpers ---------------------------------------------------------
 
@@ -93,7 +93,7 @@ lv_obj_t* makeRect(lv_obj_t* parent, lv_color_t color, uint8_t opa, int16_t w, i
   lv_obj_set_size(obj, w, h);
   lv_obj_set_style_bg_color(obj, color, 0);
   lv_obj_set_style_bg_opa(obj, opa, 0);
-  lv_obj_set_style_radius(obj, LV_RADIUS_CIRCLE, 0);
+  lv_obj_set_style_radius(obj, 0, 0);
   lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
   return obj;
 }
@@ -125,10 +125,14 @@ lv_obj_t* makeIcon(lv_obj_t* parent, const char* glyph, const lv_font_t* font, u
 // itself and the scan line that wipes it in.
 lv_color_t iconColor(uint8_t index) {
   switch (index) {
-    case 0: return C_BOBA;
-    case 1: return C_LEA;
-    case 2: return C_VADER;
-    default: return C_R2;
+    case 0:
+      return C_BOBA;
+    case 1:
+      return C_LEA;
+    case 2:
+      return C_VADER;
+    default:
+      return C_R2;
   }
 }
 
@@ -144,9 +148,12 @@ bool StartupIntro::shouldShowFor(BootReason reason) {
   // either powering on or has explicitly asked for the device to "restart").
   // Idle-timeout wakes skip the intro so a tap-to-wake feels instant.
   switch (reason) {
-    case BootReason::ColdBoot:            return true;
-    case BootReason::WakeFromManualSleep: return true;
-    case BootReason::WakeFromIdleSleep:   return false;
+    case BootReason::ColdBoot:
+      return true;
+    case BootReason::WakeFromManualSleep:
+      return true;
+    case BootReason::WakeFromIdleSleep:
+      return false;
   }
   return false;
 #else
@@ -155,9 +162,12 @@ bool StartupIntro::shouldShowFor(BootReason reason) {
 #endif
 }
 
-StartupIntro* StartupIntro::start(lv_obj_t* parent, FinishedCallback onFinished, void* userData) {
+StartupIntro* StartupIntro::start(lv_obj_t* parent,
+                                  FinishedCallback onFinished,
+                                  void* userData,
+                                  RevealCallback onReveal) {
 #if ENABLE_STARTUP_INTRO
-  StartupIntro* intro = new StartupIntro(parent, onFinished, userData);
+  StartupIntro* intro = new StartupIntro(parent, onFinished, userData, onReveal);
   intro->create();
   return intro;
 #else
@@ -174,8 +184,11 @@ void StartupIntro::skip(StartupIntro*& intro) {
   intro = nullptr;
 }
 
-StartupIntro::StartupIntro(lv_obj_t* parent, FinishedCallback onFinished, void* userData)
-  : _parent(parent ? parent : lv_scr_act()), _onFinished(onFinished), _userData(userData) {}
+StartupIntro::StartupIntro(lv_obj_t* parent, FinishedCallback onFinished, void* userData, RevealCallback onReveal)
+    : _parent(parent ? parent : lv_scr_act())
+    , _onFinished(onFinished)
+    , _onReveal(onReveal)
+    , _userData(userData) {}
 
 StartupIntro::~StartupIntro() {
   if (_timer) {
@@ -204,14 +217,22 @@ void StartupIntro::create() {
   // Hand-placed star positions + per-star fade-in delay + base opacity.
   // The pattern is chosen by eye to feel scattered rather than gridded.
   static constexpr Star starSeed[16] = {
-    {nullptr,  44,  32,  20,  70, 1}, {nullptr, 118,  20,  70,  85, 1},
-    {nullptr, 184,  38, 120,  55, 1}, {nullptr,  72,  64, 170,  95, 1},
-    {nullptr, 157,  72, 220,  65, 1}, {nullptr, 211,  86, 270,  80, 1},
-    {nullptr,  28, 104, 320,  55, 1}, {nullptr, 101, 102, 360, 105, 2},
-    {nullptr, 197, 124, 410,  60, 1}, {nullptr,  52, 146, 450,  85, 1},
-    {nullptr, 135, 151, 490,  65, 1}, {nullptr, 219, 165, 530,  50, 1},
-    {nullptr,  83, 188, 570,  70, 1}, {nullptr, 165, 200, 610,  95, 1},
-    {nullptr,  35, 214, 340,  45, 1}, {nullptr, 205, 215, 470,  75, 1},
+      {nullptr, 44, 32, 20, 70, 1},
+      {nullptr, 118, 20, 70, 85, 1},
+      {nullptr, 184, 38, 120, 55, 1},
+      {nullptr, 72, 64, 170, 95, 1},
+      {nullptr, 157, 72, 220, 65, 1},
+      {nullptr, 211, 86, 270, 80, 1},
+      {nullptr, 28, 104, 320, 55, 1},
+      {nullptr, 101, 102, 360, 105, 2},
+      {nullptr, 197, 124, 410, 60, 1},
+      {nullptr, 52, 146, 450, 85, 1},
+      {nullptr, 135, 151, 490, 65, 1},
+      {nullptr, 219, 165, 530, 50, 1},
+      {nullptr, 83, 188, 570, 70, 1},
+      {nullptr, 165, 200, 610, 95, 1},
+      {nullptr, 35, 214, 340, 45, 1},
+      {nullptr, 205, 215, 470, 75, 1},
   };
 
   for (uint8_t i = 0; i < 16; ++i) {
@@ -258,10 +279,10 @@ void StartupIntro::create() {
   lv_obj_set_style_text_color(_fighter, C_CORE, 0);
 
   const char* iconGlyphs[4] = {
-    FA_ICON_INTRO_BOBA,
-    FA_ICON_INTRO_LEA,
-    FA_ICON_INTRO_VADER,
-    FA_ICON_INTRO_R2_D2,
+      FA_ICON_INTRO_BOBA,
+      FA_ICON_INTRO_LEA,
+      FA_ICON_INTRO_VADER,
+      FA_ICON_INTRO_R2_D2,
   };
 
   // Pre-build all four parade icons so transitions just toggle opacity.
@@ -293,9 +314,9 @@ void StartupIntro::create() {
     lv_obj_set_size(arc, ScreenW - 14, ScreenH - 14);
     lv_obj_center(arc);
     lv_arc_set_mode(arc, LV_ARC_MODE_NORMAL);
-    lv_arc_set_bg_angles(arc, 0, 360);   // full-circle background track
-    lv_arc_set_angles(arc, 0, 0);        // indicator starts empty
-    lv_arc_set_rotation(arc, 270);        // 0° at 12 o'clock → fills clockwise
+    lv_arc_set_bg_angles(arc, 0, 360);  // full-circle background track
+    lv_arc_set_angles(arc, 0, 0);       // indicator starts empty
+    lv_arc_set_rotation(arc, 270);      // 0° at 12 o'clock → fills clockwise
     lv_obj_set_style_arc_color(arc, C_CORE, LV_PART_INDICATOR);
     lv_obj_set_style_arc_opa(arc, LV_OPA_80, LV_PART_INDICATOR);
     lv_obj_set_style_arc_width(arc, 3, LV_PART_INDICATOR);
@@ -345,20 +366,40 @@ void StartupIntro::tick() {
 
   const uint32_t t = lv_tick_elaps(_startedAt);
 
-  // Each phase opts in by un-hiding the objects it uses. Reset everything
-  // first so any object not touched this frame stays invisible.
-  hideAllObjects();
+  // The final crosshair/reveal phase is performance-sensitive because the
+  // life counter may already be animating underneath it. Do not hide/rebuild
+  // every intro object each frame during this phase.
+  if (t >= TBlackBeatEnd) {
+    if (!_revealPrepared) {
+      _revealPrepared = true;
 
-  // Phases. They each early-out if `t` is outside their window, so it's
-  // safe (and cheap) to call them all unconditionally in order.
-  drawStarfield(t);
-  drawFighterPass(t);
-  drawHorizontalSwoosh(t);
-  drawIconParade(t);
-  drawLockOnAndReveal(t);
+      if (_onReveal) _onReveal(_userData);
+
+      // The callback builds the game UI underneath us.
+      // Keep intro above it.
+      if (_root) lv_obj_move_foreground(_root);
+
+      // Important: do NOT make root transparent here.
+      // Keep it black until drawLockOnAndReveal() fades it out.
+      if (_root) lv_obj_set_style_bg_opa(_root, LV_OPA_COVER, 0);
+    }
+
+    drawLockOnAndReveal(t);
+  } else {
+    hideAllObjects();
+
+    drawStarfield(t);
+    drawFighterPass(t);
+    drawHorizontalSwoosh(t);
+    drawIconParade(t);
+    drawLockOnAndReveal(t);
+  }
 
   // Normal end: animation timeline exhausted.
-  if (t >= TTotal) { finish(); return; }
+  if (t >= TTotal) {
+    finish();
+    return;
+  }
 
   // Hold-to-skip: drawn on top of every phase, independent of t.
   // Must be the very last call — if TSkipHold ms have elapsed it will
@@ -414,12 +455,12 @@ void StartupIntro::drawFighterPass(uint32_t t) {
   const uint32_t dur = TSweepEnd - TStarEnd;
 
   // Sub-phase timing within this window.
-  static constexpr uint32_t TVisibleStart = 180;   // ship starts emerging from below
-  static constexpr uint32_t TBoostStart   = 1180;  // ship reaches boost point, accelerates
-  static constexpr int16_t  ShipStartY    = 258;   // fully off-screen below the 240 px panel
-  static constexpr int16_t  ShipBoostY    = 98;    // boost begins near screen centre so it
-                                                   //   aligns with the horizontal-line phase
-  static constexpr int16_t  ShipEndY      = -70;   // off the top
+  static constexpr uint32_t TVisibleStart = 180;  // ship starts emerging from below
+  static constexpr uint32_t TBoostStart = 1180;   // ship reaches boost point, accelerates
+  static constexpr int16_t ShipStartY = 258;      // fully off-screen below the 240 px panel
+  static constexpr int16_t ShipBoostY = 98;       // boost begins near screen centre so it
+                                                  //   aligns with the horizontal-line phase
+  static constexpr int16_t ShipEndY = -70;        // off the top
 
   int16_t y = ShipStartY;
   uint8_t shipOpa = 0;
@@ -444,9 +485,7 @@ void StartupIntro::drawFighterPass(uint32_t t) {
     const uint32_t boostDur = dur - TBoostStart;
     const uint16_t eased = easeInQuad255(boostLocal, boostDur);
     y = lerpI16(ShipBoostY, ShipEndY, eased, 255);
-    shipOpa = (boostLocal < boostDur * 3 / 4)
-      ? 245
-      : lerpU8(245, 70, boostLocal - boostDur * 3 / 4, boostDur / 4);
+    shipOpa = (boostLocal < boostDur * 3 / 4) ? 245 : lerpU8(245, 70, boostLocal - boostDur * 3 / 4, boostDur / 4);
   }
 
   setHidden(_fighter, false);
@@ -463,10 +502,10 @@ void StartupIntro::drawFighterPass(uint32_t t) {
     const int16_t trailHeight = std::max<int16_t>(1, ScreenH - trailTop);
     // Trail brightness ramps up before boost and decays after.
     const uint8_t trailOpaRaw = (local < TBoostStart)
-      ? lerpU8(120, 230, local - TVisibleStart, TBoostStart - TVisibleStart)
-      : lerpU8(245, 100, local - TBoostStart, dur - TBoostStart);
+                                    ? lerpU8(120, 230, local - TVisibleStart, TBoostStart - TVisibleStart)
+                                    : lerpU8(245, 100, local - TBoostStart, dur - TBoostStart);
 
-    const int16_t lineOffset = 11;
+    const int16_t lineOffset = 13;
     const int16_t glowW = 4;
     const int16_t coreW = 2;
 
@@ -476,9 +515,7 @@ void StartupIntro::drawFighterPass(uint32_t t) {
     if (local >= TBoostStart) {
       const uint32_t burstLocal = local - TBoostStart;
       const uint32_t fadeDur = 170;
-      engineTrailOpa = (burstLocal < fadeDur)
-        ? lerpU8(trailOpaRaw, 0, burstLocal, fadeDur)
-        : 0;
+      engineTrailOpa = (burstLocal < fadeDur) ? lerpU8(trailOpaRaw, 0, burstLocal, fadeDur) : 0;
     }
 
     if (engineTrailOpa > 0) {
@@ -562,9 +599,8 @@ void StartupIntro::drawHorizontalSwoosh(uint32_t t) {
   // Two-stage envelope: line pushes outward and brightens for the first
   // ~2/3, then fades for the final ~1/3.
   const int16_t half = lerpI16(60, 120, local, dur * 2 / 3);
-  const uint8_t opa = (local < dur * 2 / 3)
-    ? lerpU8(175, 235, local, dur * 2 / 3)
-    : lerpU8(235, 0, local - dur * 2 / 3, dur / 3);
+  const uint8_t opa =
+      (local < dur * 2 / 3) ? lerpU8(175, 235, local, dur * 2 / 3) : lerpU8(235, 0, local - dur * 2 / 3, dur / 3);
 
   setHidden(_hGlow, false);
   setHidden(_hCore, false);
@@ -628,12 +664,9 @@ void StartupIntro::drawIconParade(uint32_t t) {
 
   // Reveal an icon at a given opacity, with a shadow brightness boost during
   // the scan-in for a satisfying "appearing" pulse.
-  auto showIcon = [&](uint8_t index, uint8_t opa, uint8_t shadowBoost) {
+  auto showIcon = [&](uint8_t index, uint8_t opa) {
     setHidden(_icons[index], false);
-    const lv_color_t color = iconColor(index);
-    applyIconStyle(_icons[index], color, opa,
-                   std::min<uint8_t>(LV_OPA_80,
-                                     static_cast<uint8_t>(opa / 2 + shadowBoost)));
+    applyIconStyle(_icons[index], iconColor(index), opa);
   };
 
   // Draw the scan column + four accent fragment dots that follow it.
@@ -641,8 +674,7 @@ void StartupIntro::drawIconParade(uint32_t t) {
   auto drawScan = [&](uint32_t start, uint32_t end, bool leftToRight, lv_color_t scanColor) {
     const uint32_t local = t - start;
     const uint32_t dur = end - start;
-    const int16_t x = leftToRight ? lerpI16(48, 190, local, dur)
-                                  : lerpI16(190, 48, local, dur);
+    const int16_t x = leftToRight ? lerpI16(48, 190, local, dur) : lerpI16(190, 48, local, dur);
 
     setHidden(_scanline, false);
     lv_obj_set_pos(_scanline, x, 62);
@@ -668,8 +700,8 @@ void StartupIntro::drawIconParade(uint32_t t) {
     const uint32_t dur = end - start;
     const uint8_t fromOpa = lerpU8(235, 0, local, dur);
     const uint8_t toOpa = lerpU8(0, 235, local, dur);
-    showIcon(from, fromOpa, 18);
-    showIcon(to, toOpa, 28);
+    showIcon(from, fromOpa);
+    showIcon(to, toOpa);
     drawScan(start, end, leftToRight, iconColor(to));
   };
 
@@ -678,7 +710,7 @@ void StartupIntro::drawIconParade(uint32_t t) {
     const uint32_t local = t - start;
     const uint32_t dur = end - start;
     const uint8_t toOpa = lerpU8(0, 235, local, dur);
-    showIcon(to, toOpa, 28);
+    showIcon(to, toOpa);
     drawScan(start, end, leftToRight, iconColor(to));
   };
 
@@ -690,30 +722,28 @@ void StartupIntro::drawIconParade(uint32_t t) {
     if (t < TBobaScanEnd) {
       introTransitionTo(0, TIconStart, TBobaScanEnd, true);
     } else {
-      showIcon(0, 225, 20);
+      showIcon(0, 225);
     }
   } else if (t < TTrans0End) {
     // 2. Boba -> Lea (RTL white).
     transition(0, 1, TFirstHoldEnd, TTrans0End, false);
   } else if (t < THold1End) {
     // 2a. Lea hold.
-    showIcon(1, 225, 20);
+    showIcon(1, 225);
   } else if (t < TTrans1End) {
     // 3. Lea -> Vader (LTR red).
     transition(1, 2, THold1End, TTrans1End, true);
   } else if (t < THold2End) {
     // 3a. Vader hold.
-    showIcon(2, 225, 24);
+    showIcon(2, 225);
   } else if (t < TTrans2End) {
     // 4. Vader -> R2-D2 (RTL blue).
     transition(2, 3, THold2End, TTrans2End, false);
   } else {
     // 4a. R2 hold, with a 260 ms brightening pulse near the end so the
     //     final glyph "locks in" before the lock-on brackets appear.
-    const uint8_t glow = (t > TFinalHoldEnd - 260)
-      ? lerpU8(225, 255, t - (TFinalHoldEnd - 260), 260)
-      : 225;
-    showIcon(3, glow, 35);
+    const uint8_t glow = (t > TFinalHoldEnd - 260) ? lerpU8(225, 255, t - (TFinalHoldEnd - 260), 260) : 225;
+    showIcon(3, glow);
   }
 }
 
@@ -731,34 +761,67 @@ void StartupIntro::drawIconParade(uint32_t t) {
 void StartupIntro::drawLockOnAndReveal(uint32_t t) {
   if (t < TFinalHoldEnd || t >= TTotal) return;
 
+  // First frame of the final reveal phase: hide the old parade/ship objects
+  // once. After this, only update the crosshair objects.
+  if (t >= TLockStart && !_lockRevealPrepared) {
+    _lockRevealPrepared = true;
+
+    setHidden(_fighter, true);
+
+    for (uint8_t i = 0; i < 16; ++i) {
+      setHidden(_stars[i].obj, true);
+    }
+
+    for (uint8_t i = 0; i < 4; ++i) {
+      setHidden(_icons[i], true);
+      setHidden(_exhaustSpark[i], true);
+    }
+
+    for (uint8_t i = 0; i < 9; ++i) {
+      setHidden(_swoosh[i], true);
+    }
+
+    setHidden(_hGlow, true);
+    setHidden(_hCore, true);
+    setHidden(_verticalGlow, true);
+    setHidden(_verticalCore, true);
+    setHidden(_exhaustGlow, true);
+    setHidden(_exhaustCore, true);
+    setHidden(_scanline, true);
+
+    // Keep the root black here. drawLockOnAndReveal() will fade it out
+    // gradually during the lock phase, avoiding a sudden flash to the UI.
+    lv_obj_set_style_bg_opa(_root, LV_OPA_COVER, 0);
+  }
+
   // Tail end of R2's fade-out, finishing in the small black-beat window.
   if (t < TBlackBeatEnd) {
     const uint8_t fade = lerpU8(255, 0, t - TFinalHoldEnd, TBlackBeatEnd - TFinalHoldEnd);
     setHidden(_icons[3], false);
-    applyIconStyle(_icons[3], iconColor(3), fade,
-                   std::min<uint8_t>(LV_OPA_80, static_cast<uint8_t>(fade / 2 + 10)));
+    applyIconStyle(_icons[3], iconColor(3), fade);
   }
 
-  // Fade the black overlay away across the reveal window. Before TLockStart
-  // we hold full black (one short beat of stillness); after TRevealEnd
-  // we'd be at 0 anyway, which is when finish() trips on the next tick.
-  const uint8_t bgOpa = (t < TLockStart)
-    ? LV_OPA_COVER
-    : (t < TRevealEnd ? lerpU8(255, 0, t - TLockStart, TRevealEnd - TLockStart) : 0);
-  lv_obj_set_style_bg_opa(_root, bgOpa, 0);
+  // Keep the root fully black during the tiny black beat. Once the lock
+  // phase starts, fade the black away over the same duration as the reset
+  // count-up underneath. This avoids an instant transparent-frame flash.
+  if (t < TLockStart) {
+    lv_obj_set_style_bg_opa(_root, LV_OPA_COVER, 0);
+    return;
+  }
 
-  if (t < TLockStart) return;  // nothing else to draw during the black beat
+  const uint32_t local = t - TLockStart;
+  const uint32_t fadeLocal = local > TRevealFadeDelay ? local - TRevealFadeDelay : 0;
+  const uint32_t fadeDur = TRevealEnd - TLockStart - TRevealFadeDelay;
+  const uint8_t bgOpa = (t < TRevealEnd) ? lerpU8(LV_OPA_COVER, 0, fadeLocal, fadeDur) : 0;
+  lv_obj_set_style_bg_opa(_root, bgOpa, 0);
 
   // ---- centre scanline pulse ---------------------------------------------
   // A horizontal sliver that starts narrow, widens, peaks at TLockPulseEnd,
   // then fades. Visually echoes the scan columns from the parade phase.
-  const uint32_t local = t - TLockStart;
-  const uint8_t scanOpa = (t < TLockPulseEnd)
-    ? lerpU8(0, 245, local, TLockPulseEnd - TLockStart)
-    : lerpU8(245, 0, t - TLockPulseEnd, TRevealEnd - TLockPulseEnd);
-  const int16_t scanHalf = (t < TLockPulseEnd)
-    ? lerpI16(18, 92, local, TLockPulseEnd - TLockStart)
-    : lerpI16(92, 112, t - TLockPulseEnd, TRevealEnd - TLockPulseEnd);
+  const uint8_t scanOpa = (t < TLockPulseEnd) ? lerpU8(0, 245, local, TLockPulseEnd - TLockStart)
+                                              : lerpU8(245, 70, t - TLockPulseEnd, TRevealEnd - TLockPulseEnd);
+  const int16_t scanHalf = (t < TLockPulseEnd) ? lerpI16(18, 92, local, TLockPulseEnd - TLockStart)
+                                               : lerpI16(92, 112, t - TLockPulseEnd, TRevealEnd - TLockPulseEnd);
   setHidden(_scanline, false);
   lv_obj_set_pos(_scanline, CenterX - scanHalf, CenterY - 2);
   lv_obj_set_size(_scanline, scanHalf * 2, 3);
@@ -768,9 +831,8 @@ void StartupIntro::drawLockOnAndReveal(uint32_t t) {
   // ---- soft centre glow --------------------------------------------------
   // Big 28 px blue halo + 8 px bright core, pulsing in and out together
   // with the scanline. This is what the eye reads as the "lock target".
-  const uint8_t glowOpa = (t < TLockPulseEnd)
-    ? lerpU8(0, 160, local, TLockPulseEnd - TLockStart)
-    : lerpU8(160, 0, t - TLockPulseEnd, TRevealEnd - TLockPulseEnd);
+  const uint8_t glowOpa = (t < TLockPulseEnd) ? lerpU8(0, 160, local, TLockPulseEnd - TLockStart)
+                                              : lerpU8(160, 45, t - TLockPulseEnd, TRevealEnd - TLockPulseEnd);
   setHidden(_verticalGlow, false);
   lv_obj_set_pos(_verticalGlow, CenterX - 14, CenterY - 14);
   lv_obj_set_size(_verticalGlow, 28, 28);
@@ -786,12 +848,9 @@ void StartupIntro::drawLockOnAndReveal(uint32_t t) {
   // Horizontal ticks (top-left, top-right, bottom-left, bottom-right) that
   // tighten inward as they brighten — `inset` shrinks 42 -> 22 px during
   // the in-pulse and then sticks at 22 during the out-fade.
-  const uint8_t tickOpa = (t < TLockPulseEnd)
-    ? lerpU8(0, 255, local, TLockPulseEnd - TLockStart)
-    : lerpU8(255, 0, t - TLockPulseEnd, TRevealEnd - TLockPulseEnd);
-  const int16_t inset = (t < TLockPulseEnd)
-    ? lerpI16(42, 22, local, TLockPulseEnd - TLockStart)
-    : 22;
+  const uint8_t tickOpa = (t < TLockPulseEnd) ? lerpU8(0, 255, local, TLockPulseEnd - TLockStart)
+                                              : lerpU8(255, 90, t - TLockPulseEnd, TRevealEnd - TLockPulseEnd);
+  const int16_t inset = (t < TLockPulseEnd) ? lerpI16(42, 22, local, TLockPulseEnd - TLockStart) : 22;
 
   for (uint8_t i = 0; i < 4; ++i) {
     setHidden(_fragments[i], false);
@@ -800,9 +859,9 @@ void StartupIntro::drawLockOnAndReveal(uint32_t t) {
     lv_obj_set_size(_fragments[i], 20, 3);
   }
   lv_obj_set_pos(_fragments[0], CenterX - inset - 20, CenterY - 22);  // top-left horizontal
-  lv_obj_set_pos(_fragments[1], CenterX + inset,      CenterY - 22);  // top-right horizontal
+  lv_obj_set_pos(_fragments[1], CenterX + inset, CenterY - 22);       // top-right horizontal
   lv_obj_set_pos(_fragments[2], CenterX - inset - 20, CenterY + 19);  // bottom-left horizontal
-  lv_obj_set_pos(_fragments[3], CenterX + inset,      CenterY + 19);  // bottom-right horizontal
+  lv_obj_set_pos(_fragments[3], CenterX + inset, CenterY + 19);       // bottom-right horizontal
 
   // Matching vertical ticks for each corner, reusing engine-trail/exhaust
   // rectangles. Same opacity envelope as the horizontal ticks.
@@ -818,14 +877,14 @@ void StartupIntro::drawLockOnAndReveal(uint32_t t) {
   lv_obj_set_style_bg_opa(_hCore, tickOpa, 0);
   lv_obj_set_style_bg_opa(_exhaustGlow, tickOpa, 0);
   lv_obj_set_style_bg_opa(_exhaustCore, tickOpa, 0);
-  lv_obj_set_pos(_hGlow,       CenterX - inset - 3, CenterY - 22);  // top-left vertical
-  lv_obj_set_size(_hGlow,      3, 12);
-  lv_obj_set_pos(_hCore,       CenterX + inset,     CenterY - 22);  // top-right vertical
-  lv_obj_set_size(_hCore,      3, 12);
+  lv_obj_set_pos(_hGlow, CenterX - inset - 3, CenterY - 22);  // top-left vertical
+  lv_obj_set_size(_hGlow, 3, 12);
+  lv_obj_set_pos(_hCore, CenterX + inset, CenterY - 22);  // top-right vertical
+  lv_obj_set_size(_hCore, 3, 12);
   lv_obj_set_pos(_exhaustGlow, CenterX - inset - 3, CenterY + 10);  // bottom-left vertical
-  lv_obj_set_size(_exhaustGlow,3, 12);
-  lv_obj_set_pos(_exhaustCore, CenterX + inset,     CenterY + 10);  // bottom-right vertical
-  lv_obj_set_size(_exhaustCore,3, 12);
+  lv_obj_set_size(_exhaustGlow, 3, 12);
+  lv_obj_set_pos(_exhaustCore, CenterX + inset, CenterY + 10);  // bottom-right vertical
+  lv_obj_set_size(_exhaustCore, 3, 12);
 }
 
 // =============================================================================
@@ -859,9 +918,7 @@ void StartupIntro::drawSkipArc() {
 
   // Compute fill angle (0 → 360° over TSkipHold ms), clamped below 360
   // so lv_arc never sees start == end which would render as full-circle.
-  const uint16_t deg = (elapsed >= TSkipHold)
-    ? 359
-    : static_cast<uint16_t>(359UL * elapsed / TSkipHold);
+  const uint16_t deg = (elapsed >= TSkipHold) ? 359 : static_cast<uint16_t>(359UL * elapsed / TSkipHold);
 
   lv_arc_set_angles(_skipArc, 0, deg);
   setHidden(_skipArc, false);
@@ -885,12 +942,15 @@ void StartupIntro::hideAllObjects() {
   setHidden(_verticalCore, true);
   setHidden(_exhaustGlow, true);
   setHidden(_exhaustCore, true);
-  for (auto* spark : _exhaustSpark) setHidden(spark, true);
-  for (auto* swoosh : _swoosh) setHidden(swoosh, true);
+  for (auto* spark : _exhaustSpark)
+    setHidden(spark, true);
+  for (auto* swoosh : _swoosh)
+    setHidden(swoosh, true);
   setHidden(_hGlow, true);
   setHidden(_hCore, true);
   setHidden(_scanline, true);
-  for (auto* fragment : _fragments) setHidden(fragment, true);
+  for (auto* fragment : _fragments)
+    setHidden(fragment, true);
   for (auto* icon : _icons) {
     setHidden(icon, true);
     lv_obj_set_style_text_opa(icon, 0, 0);
@@ -899,16 +959,19 @@ void StartupIntro::hideAllObjects() {
 
 void StartupIntro::setHidden(lv_obj_t* obj, bool hidden) {
   if (!obj) return;
-  if (hidden) lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
-  else lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);
+
+  const bool isHidden = lv_obj_has_flag(obj, LV_OBJ_FLAG_HIDDEN);
+  if (isHidden == hidden) return;
+
+  if (hidden)
+    lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
+  else
+    lv_obj_clear_flag(obj, LV_OBJ_FLAG_HIDDEN);
 }
 
-void StartupIntro::applyIconStyle(lv_obj_t* icon, lv_color_t color, uint8_t textOpa, uint8_t shadowOpa) {
-  // `shadowOpa` is intentionally accepted but unused: we used to drive a
-  // halo behind each character glyph, but the scanline + accent fragments
-  // do that job better. Keep the parameter so call sites stay self-documenting.
-  (void)shadowOpa;
+void StartupIntro::applyIconStyle(lv_obj_t* icon, lv_color_t color, uint8_t textOpa) {
   if (!icon) return;
+
   lv_obj_set_style_text_color(icon, color, 0);
   lv_obj_set_style_text_opa(icon, textOpa, 0);
 

@@ -7,7 +7,7 @@
 // It is purely a visual: it owns no game state and produces no side effects
 // outside its own LVGL subtree.
 //
-// HIGH-LEVEL STORY (~7.3 s total)
+// HIGH-LEVEL STORY (~7.1 s total)
 //
 //   0.00 - 0.72 s   Starfield twinkles in.
 //   0.72 - 2.30 s   X-Wing rises from below, slows mid-screen, then boosts
@@ -20,7 +20,7 @@
 //                   joined by alternating left/right vertical scan lines
 //                   in each character's accent colour.
 //   6.24 - 6.36 s   R2 fades out; the screen is fully black again.
-//   6.36 - 7.26 s   Blue lock-on brackets pulse around the centre while
+//   6.36 - 7.14 s   Blue lock-on brackets pulse around the centre while
 //                   the black overlay fades, revealing the real game UI.
 //
 // WHEN IT PLAYS
@@ -41,6 +41,7 @@
 class StartupIntro {
 public:
   using FinishedCallback = void (*)(void* userData);
+  using RevealCallback = void (*)(void* userData);
 
   // Why the device is entering setup(). The .ino computes this from the
   // ESP32 wake cause plus the SleepReason we stored before sleeping.
@@ -61,7 +62,8 @@ public:
   // post-intro chain runs regardless.
   static StartupIntro* start(lv_obj_t* parent,
                              FinishedCallback onFinished = nullptr,
-                             void* userData = nullptr);
+                             void* userData = nullptr,
+                             RevealCallback onReveal = nullptr);
 
   // Abort an in-flight intro early. Safe to call with a null handle; clears
   // the caller's pointer.
@@ -79,12 +81,12 @@ public:
   ~StartupIntro();
 
 private:
-  StartupIntro(lv_obj_t* parent, FinishedCallback onFinished, void* userData);
+  StartupIntro(lv_obj_t* parent, FinishedCallback onFinished, void* userData, RevealCallback onReveal);
 
   // ---- lifecycle -------------------------------------------------------
-  void create();                            // build LVGL objects, kick off the timer
-  void tick();                              // dispatch to phase methods based on elapsed time
-  void finish();                            // tear down, fire callback, delete this
+  void create();  // build LVGL objects, kick off the timer
+  void tick();    // dispatch to phase methods based on elapsed time
+  void finish();  // tear down, fire callback, delete this
   static void timerThunk(lv_timer_t* timer);
 
   // ---- phases ----------------------------------------------------------
@@ -93,17 +95,17 @@ private:
   // `t` falls within their window. Earlier phases always run hideAllObjects
   // at the start of `tick`, so a phase only ever needs to un-hide and
   // position the objects it actually uses.
-  void hideAllObjects();                    // reset visibility before each tick
-  void drawStarfield(uint32_t t);           // background twinkle (0 .. TLineEnd)
-  void drawFighterPass(uint32_t t);         // X-Wing flyby + engine cone (TStarEnd .. TSweepEnd)
-  void drawHorizontalSwoosh(uint32_t t);    // line emerges + cone dissolves (TSweepEnd .. TLineEnd)
-  void drawIconParade(uint32_t t);          // character scan transitions (TIconStart .. TFinalHoldEnd)
-  void drawLockOnAndReveal(uint32_t t);     // R2 fade + brackets + bg fade (TFinalHoldEnd .. TTotal)
-  void drawSkipArc();                       // hold-to-skip ring; drawn on top, independent of t
+  void hideAllObjects();                  // reset visibility before each tick
+  void drawStarfield(uint32_t t);         // background twinkle (0 .. TLineEnd)
+  void drawFighterPass(uint32_t t);       // X-Wing flyby + engine cone (TStarEnd .. TSweepEnd)
+  void drawHorizontalSwoosh(uint32_t t);  // line emerges + cone dissolves (TSweepEnd .. TLineEnd)
+  void drawIconParade(uint32_t t);        // character scan transitions (TIconStart .. TFinalHoldEnd)
+  void drawLockOnAndReveal(uint32_t t);   // R2 fade + brackets + bg fade (TFinalHoldEnd .. TTotal)
+  void drawSkipArc();                     // hold-to-skip ring; drawn on top, independent of t
 
   // ---- helpers ---------------------------------------------------------
   void setHidden(lv_obj_t* obj, bool hidden);
-  void applyIconStyle(lv_obj_t* icon, lv_color_t color, uint8_t textOpa, uint8_t shadowOpa);
+  void applyIconStyle(lv_obj_t* icon, lv_color_t color, uint8_t textOpa);
 
   static constexpr int16_t ScreenW = 240;
   static constexpr int16_t ScreenH = 240;
@@ -112,30 +114,37 @@ private:
 
   // Phase boundary timestamps (ms since intro start). All phases compare
   // against these so the timeline is easy to retune from one place.
-  static constexpr uint32_t TStarEnd       = 720;   // starfield twinkle window closes
-  static constexpr uint32_t TSweepEnd      = 2300;  // X-Wing has exited the top
-  static constexpr uint32_t TLineEnd       = 3100;  // horizontal line has finished pushing out
-  static constexpr uint32_t TBlackEnd      = 3280;  // brief black beat ends
-  static constexpr uint32_t TIconStart     = 3280;  // first character (Boba) starts scanning in
+  static constexpr uint32_t TStarEnd = 720;     // starfield twinkle window closes
+  static constexpr uint32_t TSweepEnd = 2300;   // X-Wing has exited the top
+  static constexpr uint32_t TLineEnd = 3100;    // horizontal line has finished pushing out
+  static constexpr uint32_t TBlackEnd = 3280;   // brief black beat ends
+  static constexpr uint32_t TIconStart = 3280;  // first character (Boba) starts scanning in
 
   // Character scan cadence: 380 ms scan, 360 ms holds between transitions.
-  static constexpr uint32_t TFirstHoldEnd  = 4020;  // Boba hold ends (after LTR green scan in)
-  static constexpr uint32_t TTrans0End     = 4400;  // RTL white scan -> Lea
-  static constexpr uint32_t THold1End      = 4760;  // Lea hold ends
-  static constexpr uint32_t TTrans1End     = 5140;  // LTR red scan -> Vader
-  static constexpr uint32_t THold2End      = 5500;  // Vader hold ends
-  static constexpr uint32_t TTrans2End     = 5880;  // RTL blue scan -> R2-D2
-  static constexpr uint32_t TFinalHoldEnd  = 6240;  // R2 hold ends, fade-out begins
-  static constexpr uint32_t TBlackBeatEnd  = 6360;  // R2 has fully faded
-  static constexpr uint32_t TLockStart     = 6360;  // lock-on brackets begin appearing
-  static constexpr uint32_t TLockPulseEnd  = 6740;  // brackets at full intensity, start fading
-  static constexpr uint32_t TRevealEnd     = 7260;  // black overlay fully transparent
-  static constexpr uint32_t TTotal         = 7260;  // intro is done; finish() fires
+  static constexpr uint32_t TFirstHoldEnd = 4020;  // Boba hold ends (after LTR green scan in)
+  static constexpr uint32_t TTrans0End = 4400;     // RTL white scan -> Lea
+  static constexpr uint32_t THold1End = 4760;      // Lea hold ends
+  static constexpr uint32_t TTrans1End = 5140;     // LTR red scan -> Vader
+  static constexpr uint32_t THold2End = 5500;      // Vader hold ends
+  static constexpr uint32_t TTrans2End = 5880;     // RTL blue scan -> R2-D2
+  static constexpr uint32_t TFinalHoldEnd = 6240;  // R2 hold ends, fade-out begins
+  static constexpr uint32_t TBlackBeatEnd = 6360;  // R2 has fully faded
+  static constexpr uint32_t TLockStart = 6360;     // lock-on brackets begin appearing
+
+  // Match the visible lock-on phase to the reset count-up.
+  // 30 life * 26 ms step = ~780 ms.
+  static constexpr uint32_t TLockRevealMs = 780;
+  static constexpr uint32_t TRevealFadeDelay = 120;
+
+  static constexpr uint32_t TLockPulseEnd =
+      TLockStart + (TLockRevealMs * 2 / 3);                           // brackets at full intensity, start fading
+  static constexpr uint32_t TRevealEnd = TLockStart + TLockRevealMs;  // black overlay fully transparent
+  static constexpr uint32_t TTotal = TRevealEnd;                      // intro is done; finish() fires
 
   // How long the user must hold continuously to skip the intro.
   // Long enough that the brief waking touch (which triggers the deep-sleep
   // wake interrupt) can never accidentally fire the skip.
-  static constexpr uint32_t TSkipHold      = 900;
+  static constexpr uint32_t TSkipHold = 900;
 
   struct Star {
     lv_obj_t* obj = nullptr;
@@ -151,8 +160,11 @@ private:
   lv_timer_t* _timer = nullptr;
   uint32_t _startedAt = 0;
   FinishedCallback _onFinished = nullptr;
+  RevealCallback _onReveal = nullptr;
   void* _userData = nullptr;
   bool _finished = false;
+  bool _revealPrepared = false;
+  bool _lockRevealPrepared = false;
 
   // ---- LVGL object pool ------------------------------------------------
   // The intro reuses a small fixed set of objects across phases (e.g. the
@@ -177,6 +189,6 @@ private:
   // ---- Hold-to-skip state -----------------------------------------------
   // Managed independently of the animation objects above; not touched by
   // hideAllObjects(). _holdStartAt is 0 while no hold is in progress.
-  uint32_t  _holdStartAt = 0;
+  uint32_t _holdStartAt = 0;
   lv_obj_t* _skipArc = nullptr;
 };

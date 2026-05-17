@@ -59,9 +59,16 @@ private:
   static void styleArc(lv_obj_t* arc, lv_color_t color, int s, int e, int width);
   static void makeArc(lv_obj_t*& arc, lv_color_t color, int s, int e, lv_obj_t* parent, int width);
   static lv_obj_t* makeClip(lv_obj_t* parent, int x, int y, int w, int h);
-  static void makeClippedArc(lv_obj_t*& arc, lv_color_t color, int s, int e,
-                             lv_obj_t* parent, int width,
-                             int clipX, int clipY, int clipW, int clipH);
+  static void makeClippedArc(lv_obj_t*& arc,
+                             lv_color_t color,
+                             int s,
+                             int e,
+                             lv_obj_t* parent,
+                             int width,
+                             int clipX,
+                             int clipY,
+                             int clipW,
+                             int clipH);
   static void startFlash(Flash& f, lv_obj_t* arc);
   static void fade(Flash& f, lv_obj_t* arc, uint32_t now);
 };

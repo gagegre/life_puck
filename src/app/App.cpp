@@ -74,8 +74,10 @@ void createGameUI() {
   gameUi.setBaseLife1(game.baseLife1);
   gameUi.setBaseLife2(game.baseLife2);
   gameUi.setCountUp(game.countUp);
-  if (game.twoPlayer) gameUi.enterTwoPlayer();
-  else gameUi.exitTwoPlayer();
+  if (game.twoPlayer)
+    gameUi.enterTwoPlayer();
+  else
+    gameUi.exitTwoPlayer();
 }
 
 void createRadialMenuOverlay() {
@@ -95,7 +97,6 @@ void createRadialMenuOverlay() {
 
 void executeMenuAction(MenuAction action) {
   switch (action) {
-
     case MenuAction::SLEEP:
       // Top-level sleep is only a request to show the confirm dial.
       // Actual deep sleep is triggered exclusively by SLEEP_OFF.
@@ -108,8 +109,10 @@ void executeMenuAction(MenuAction action) {
     case MenuAction::PLAYER_TOGGLE:
       game.twoPlayer = !game.twoPlayer;
       gameUi.resetBoth(game.countUp, /*twoPlayerMode=*/true);
-      if (game.twoPlayer) gameUi.enterTwoPlayer();
-      else gameUi.exitTwoPlayer();
+      if (game.twoPlayer)
+        gameUi.enterTwoPlayer();
+      else
+        gameUi.exitTwoPlayer();
       radialMenu.onGameStateChanged();
       modeToast.show(iconForAction(MenuAction::PLAYER_TOGGLE, game),
                      game.twoPlayer ? UiText::VERSUS : UiText::SINGLE,
@@ -166,79 +169,74 @@ void executeMenuAction(MenuAction action) {
       modeToast.show(FA_ICON_COUNT_UP, UiText::COUNT_UP, COLOR_MENU_ORANGE);
       break;
 
-    case MenuAction::BASE_SELECTOR_COMMIT:
-      {
-        // BaseSelectorView has already written the chosen values into
-        // game.baseLife1 / game.baseLife2; persist and apply them now.
-        gameUi.setBaseLife1(game.baseLife1);
-        gameUi.setBaseLife2(game.baseLife2);
-        nvm.setBaseLife1(game.baseLife1);
-        nvm.setBaseLife2(game.baseLife2);
-        radialMenu.onGameStateChanged();
-        char buf[24];
-        game.twoPlayer ? snprintf(buf, sizeof(buf), UiText::BASE_LIFE_FMT_2P, game.baseLife1, game.baseLife2)
-                       : snprintf(buf, sizeof(buf), UiText::BASE_LIFE_FMT_1P, game.baseLife1);
-        modeToast.show(FA_ICON_BASE_LIFE, buf, COLOR_MENU_ORANGE);
-        break;
-      }
+    case MenuAction::BASE_SELECTOR_COMMIT: {
+      // BaseSelectorView has already written the chosen values into
+      // game.baseLife1 / game.baseLife2; persist and apply them now.
+      gameUi.setBaseLife1(game.baseLife1);
+      gameUi.setBaseLife2(game.baseLife2);
 
-    case MenuAction::BATTERY_CYCLE:
-      {
-        const uint8_t next = (static_cast<uint8_t>(battery.mode()) + 1) % 3;
-        battery.setMode((BatteryMode)next);
-        if (battery.mode() != BatteryMode::HIDE) battery.forceRefresh();
-        nvm.setBatteryMode(battery.mode());
-        radialMenu.onGameStateChanged();
-        const char* modeText = (battery.mode() == BatteryMode::HIDE)   ? UiText::BATTERY_HIDE
-                               : (battery.mode() == BatteryMode::AUTO) ? UiText::BATTERY_AUTO
-                                                                       : UiText::BATTERY_SHOW;
-        char toastBuf[24];
-        snprintf(toastBuf, sizeof(toastBuf), UiText::BATTERY_FMT, modeText);
-        modeToast.show(FA_ICON_BATTERY_THREE_QUARTERS, toastBuf, COLOR_MENU_PINK);
-        break;
-      }
+      // Only after explicit confirm: reset both players to the new full base life.
+      gameUi.resetBoth(game.countUp, game.twoPlayer);
 
-    case MenuAction::BRIGHTNESS_CYCLE:
-      {
-        const int pct = backlight.asPercent();
-        const int nextPct = (pct < 25)    ? 25
-                            : (pct < 50)  ? 50
-                            : (pct < 75)  ? 75
-                            : (pct < 100) ? 100
-                                          : 25;
-        backlight.setPercent(nextPct);
-        nvm.setBrightness(backlight.level());
-        radialMenu.onGameStateChanged();
-        char toastBuf[24];
-        snprintf(toastBuf, sizeof(toastBuf), UiText::BRIGHTNESS_FMT, nextPct);
-        modeToast.show(FA_ICON_BRIGHTNESS, toastBuf, COLOR_MENU_YELLOW);
-        break;
-      }
+      nvm.setBaseLife1(game.baseLife1);
+      nvm.setBaseLife2(game.baseLife2);
+      radialMenu.onGameStateChanged();
+      char buf[24];
+      game.twoPlayer ? snprintf(buf, sizeof(buf), UiText::BASE_LIFE_FMT_2P, game.baseLife1, game.baseLife2)
+                     : snprintf(buf, sizeof(buf), UiText::BASE_LIFE_FMT_1P, game.baseLife1);
+      modeToast.show(FA_ICON_BASE_LIFE, buf, COLOR_MENU_ORANGE);
+      break;
+    }
+
+    case MenuAction::BATTERY_CYCLE: {
+      const uint8_t next = (static_cast<uint8_t>(battery.mode()) + 1) % 3;
+      battery.setMode((BatteryMode)next);
+      if (battery.mode() != BatteryMode::HIDE) battery.forceRefresh();
+      nvm.setBatteryMode(battery.mode());
+      radialMenu.onGameStateChanged();
+      const char* modeText = (battery.mode() == BatteryMode::HIDE)   ? UiText::BATTERY_HIDE
+                             : (battery.mode() == BatteryMode::AUTO) ? UiText::BATTERY_AUTO
+                                                                     : UiText::BATTERY_SHOW;
+      char toastBuf[24];
+      snprintf(toastBuf, sizeof(toastBuf), UiText::BATTERY_FMT, modeText);
+      modeToast.show(FA_ICON_BATTERY_THREE_QUARTERS, toastBuf, COLOR_MENU_PINK);
+      break;
+    }
+
+    case MenuAction::BRIGHTNESS_CYCLE: {
+      const int pct = backlight.asPercent();
+      const int nextPct = (pct < 25) ? 25 : (pct < 50) ? 50 : (pct < 75) ? 75 : (pct < 100) ? 100 : 25;
+      backlight.setPercent(nextPct);
+      nvm.setBrightness(backlight.level());
+      radialMenu.onGameStateChanged();
+      char toastBuf[24];
+      snprintf(toastBuf, sizeof(toastBuf), UiText::BRIGHTNESS_FMT, nextPct);
+      modeToast.show(FA_ICON_BRIGHTNESS, toastBuf, COLOR_MENU_YELLOW);
+      break;
+    }
 
     // BATTERY / BRIGHTNESS open sub-views; the actual change happens
     // there. After the sub-view commits, persist the new value here.
-    case MenuAction::BATTERY:
-      {
-        nvm.setBatteryMode(battery.mode());
-        nvm.setBatteryShowPct(battery.isShowingPercent());
-        const char* modeText = battery.isShowingPercent()              ? UiText::BATTERY_PERCENT_ON
-                               : (battery.mode() == BatteryMode::HIDE) ? UiText::BATTERY_HIDE
-                               : (battery.mode() == BatteryMode::AUTO) ? UiText::BATTERY_AUTO
-                                                                       : UiText::BATTERY_SHOW;
-        char toastBuf[24];
-        snprintf(toastBuf, sizeof(toastBuf), UiText::BATTERY_FMT, modeText);
-        modeToast.show(FA_ICON_BATTERY_THREE_QUARTERS, toastBuf, COLOR_MENU_PINK);
-        break;
-      }
+    case MenuAction::BATTERY: {
+      nvm.setBatteryMode(battery.mode());
+      nvm.setBatteryShowPct(battery.isShowingPercent());
+      const char* modeText = battery.isShowingPercent()              ? UiText::BATTERY_PERCENT_ON
+                             : (battery.mode() == BatteryMode::HIDE) ? UiText::BATTERY_HIDE
+                             : (battery.mode() == BatteryMode::AUTO) ? UiText::BATTERY_AUTO
+                                                                     : UiText::BATTERY_SHOW;
+      char toastBuf[24];
+      snprintf(toastBuf, sizeof(toastBuf), UiText::BATTERY_FMT, modeText);
+      modeToast.show(FA_ICON_BATTERY_THREE_QUARTERS, toastBuf, COLOR_MENU_PINK);
+      break;
+    }
 
-    case MenuAction::BRIGHTNESS:
-      {
-        nvm.setBrightness(backlight.level());
-        char toastBuf[24];
-        snprintf(toastBuf, sizeof(toastBuf), UiText::BRIGHTNESS_FMT, backlight.asPercent());
-        modeToast.show(FA_ICON_BRIGHTNESS, toastBuf, COLOR_MENU_YELLOW);
-        break;
-      }
+    case MenuAction::BRIGHTNESS: {
+      nvm.setBrightness(backlight.level());
+      char toastBuf[24];
+      snprintf(toastBuf, sizeof(toastBuf), UiText::BRIGHTNESS_FMT, backlight.asPercent());
+      modeToast.show(FA_ICON_BRIGHTNESS, toastBuf, COLOR_MENU_YELLOW);
+      break;
+    }
 
     case MenuAction::NONE:
     default:
@@ -260,12 +258,13 @@ void drainPendingMenuAction() {
   if (a == MenuAction::NONE) return;
 
   // Sub-view commits close the menu; top-level cycles stay open.
-  const bool closeActions[] = {
-    a == MenuAction::SLEEP, a == MenuAction::SLEEP_OFF,
-    a == MenuAction::SET_1P, a == MenuAction::SET_2P,
-    a == MenuAction::COUNT_DOWN, a == MenuAction::COUNT_UP,
-    a == MenuAction::BASE_SELECTOR_COMMIT
-  };
+  const bool closeActions[] = {a == MenuAction::SLEEP,
+                               a == MenuAction::SLEEP_OFF,
+                               a == MenuAction::SET_1P,
+                               a == MenuAction::SET_2P,
+                               a == MenuAction::COUNT_DOWN,
+                               a == MenuAction::COUNT_UP,
+                               a == MenuAction::BASE_SELECTOR_COMMIT};
   bool didClose = false;
   for (bool c : closeActions) {
     if (c) {
@@ -397,8 +396,7 @@ void handleTouch() {
     return;
   }
 
-  const bool isCenter =
-    abs(x - CENTER_X) <= CENTER_TAP_HALF && abs(y - CENTER_Y) <= CENTER_TAP_HALF;
+  const bool isCenter = abs(x - CENTER_X) <= CENTER_TAP_HALF && abs(y - CENTER_Y) <= CENTER_TAP_HALF;
 
   // Touch-lock: only allow centre hold to access the menu.
   if (game.touchLocked) {
@@ -435,7 +433,7 @@ void handleTouch() {
     LifeCounter& undoTarget = (undoPending.player == 1) ? gameUi.p2() : gameUi.p1();
     const bool targetIsP2 = (undoPending.player == 1);
     const bool isConfirm =
-      (!targetIsP2 && gesture == Gesture::SWIPE_RIGHT) || (targetIsP2 && gesture == Gesture::SWIPE_LEFT);
+        (!targetIsP2 && gesture == Gesture::SWIPE_RIGHT) || (targetIsP2 && gesture == Gesture::SWIPE_LEFT);
     undoTarget.clearUndoPending();
     undoPending.cancel();
     if (isConfirm) {
@@ -463,20 +461,18 @@ void handleTouch() {
       break;
 
     case Gesture::SWIPE_LEFT:
-    case Gesture::SWIPE_RIGHT:
-      {
-        // P1 trigger = SWIPE_LEFT; P2 trigger = SWIPE_RIGHT (their rotated "left").
-        // The opposite direction is reserved for confirming undo.
-        const bool isTrigger =
+    case Gesture::SWIPE_RIGHT: {
+      // P1 trigger = SWIPE_LEFT; P2 trigger = SWIPE_RIGHT (their rotated "left").
+      // The opposite direction is reserved for confirming undo.
+      const bool isTrigger =
           (!isP2Side && gesture == Gesture::SWIPE_LEFT) || (isP2Side && gesture == Gesture::SWIPE_RIGHT);
-        if (isTrigger && target.beginUndoPending()) {
-          undoPending.begin(isP2Side ? 1 : 0);
-          // Prevent held undo-swipe samples from immediately cancelling
-          // the pending state and causing visible flicker.
-          touchRouter.swallowUntilLift();
-        }
+      if (isTrigger && target.beginUndoPending()) {
+        undoPending.begin(isP2Side ? 1 : 0);
+        // Prevent held undo-swipe samples from immediately cancelling
+        // the pending state and causing visible flicker.
+        touchRouter.swallowUntilLift();
       }
-      break;
+    } break;
 
     case Gesture::SINGLE_TAP:
       target.tapped(y, game.twoPlayer);

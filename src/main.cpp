@@ -39,6 +39,10 @@
 StartupIntro* startupIntro = nullptr;
 
 static bool gWokeFromDeepSleep = false;
+static bool gGameUiPreparedForIntroReveal = false;
+static bool gPendingPostIntroReset = false;
+
+static int resetStartValueForIntro(bool countUpMode, int baseLife);
 
 // Decide what the device is booting *because of*. Called once at the top of
 // setup() after we've already latched the ESP32 wake cause and after NVS has
@@ -54,27 +58,42 @@ static bool gWokeFromDeepSleep = false;
 static StartupIntro::BootReason computeBootReason(bool wokeFromDeepSleep) {
   if (!wokeFromDeepSleep) return StartupIntro::BootReason::ColdBoot;
   switch (rtcState.lastSleepReason) {
-    case SleepReason::Manual:      return StartupIntro::BootReason::WakeFromManualSleep;
-    case SleepReason::IdleTimeout: return StartupIntro::BootReason::WakeFromIdleSleep;
-    case SleepReason::None:        return StartupIntro::BootReason::WakeFromIdleSleep;
+    case SleepReason::Manual:
+      return StartupIntro::BootReason::WakeFromManualSleep;
+    case SleepReason::IdleTimeout:
+      return StartupIntro::BootReason::WakeFromIdleSleep;
+    case SleepReason::None:
+      return StartupIntro::BootReason::WakeFromIdleSleep;
   }
   return StartupIntro::BootReason::WakeFromIdleSleep;
 }
 
-static void buildGameUiForBoot(bool wokeFromDeepSleep) {
+static void buildGameUiForBoot(bool wokeFromDeepSleep, bool animateInitialReset = true) {
   createGameUI();
   battery.forceRefresh();
 
   // Restore life values now that the labels exist.
   if (wokeFromDeepSleep) {
     gameUi.restoreValues(rtcState.life, rtcState.life2);
+
     // Re-apply the final 2P/1P layout after restoring text. The restored
     // value can change the label width, which matters for the rotated P2
     // transform and its alignment.
-    if (game.twoPlayer) gameUi.enterTwoPlayer();
-    else gameUi.exitTwoPlayer();
+    if (game.twoPlayer)
+      gameUi.enterTwoPlayer();
+    else
+      gameUi.exitTwoPlayer();
+  } else if (animateInitialReset) {
+    gameUi.resetBoth(game.countUp, game.twoPlayer);
   } else {
-    gameUi.resetBoth(game.countUp, /*twoPlayerMode=*/true);
+    const int p1Start = resetStartValueForIntro(game.countUp, game.baseLife1);
+    const int p2Start = resetStartValueForIntro(game.countUp, game.baseLife2);
+    gameUi.restoreValues(p1Start, p2Start);
+
+    if (game.twoPlayer)
+      gameUi.enterTwoPlayer();
+    else
+      gameUi.exitTwoPlayer();
   }
 
   // Build the radial overlay only after the main game UI exists, so any
@@ -83,13 +102,53 @@ static void buildGameUiForBoot(bool wokeFromDeepSleep) {
   createRadialMenuOverlay();
 }
 
+static int resetStartValueForIntro(bool countUpMode, int baseLife) {
+  // Match LifeCounter::reset(...) start value:
+  // HP/count-down mode: show 0 first, then count up to base life.
+  // Damage/count-up mode: show base life first, then count down to 0.
+  return countUpMode ? baseLife : LIFE_MIN;
+}
+
+void prepareGameUiForIntroReveal(void* userData) {
+  (void)userData;
+
+  if (gGameUiPreparedForIntroReveal) return;
+  gGameUiPreparedForIntroReveal = true;
+
+  // During the crosshair/reveal phase, show the reset-start value only.
+  // Do NOT start the reset animation yet; it begins after the intro is gone.
+  buildGameUiForBoot(gWokeFromDeepSleep, false);
+
+  const int p1Start = resetStartValueForIntro(game.countUp, game.baseLife1);
+  const int p2Start = resetStartValueForIntro(game.countUp, game.baseLife2);
+  gameUi.restoreValues(p1Start, p2Start);
+
+  if (game.twoPlayer)
+    gameUi.enterTwoPlayer();
+  else
+    gameUi.exitTwoPlayer();
+
+  gPendingPostIntroReset = true;
+
+  lv_obj_invalidate(lv_screen_active());
+}
+
 void onStartupIntroFinished(void* userData) {
   startupIntro = nullptr;
 
-  // The intro path intentionally does NOT build the life-counter UI before
-  // the intro starts. Build it now, after the animation has finished, so a
-  // manual deep-sleep wake cannot flash the counter before the intro.
-  buildGameUiForBoot(gWokeFromDeepSleep);
+  // If the intro was skipped before the reveal phase, the game UI was not
+  // prepared yet. Build it now as fallback.
+  if (!gGameUiPreparedForIntroReveal) {
+    prepareGameUiForIntroReveal(userData);
+  }
+
+  if (gPendingPostIntroReset) {
+    gPendingPostIntroReset = false;
+
+    // Crosshair is gone now. Start the normal reset/count animation here,
+    // same path/speed as other UI reset transitions.
+    gameUi.resetBoth(game.countUp, game.twoPlayer);
+  }
 
   lv_obj_invalidate(lv_screen_active());
   lv_refr_now(Hardware::lvDisplay);
@@ -126,8 +185,7 @@ void setup() {
   // Detect wake reason early. On deep-sleep wake the LCD controller can still
   // contain the clean life-counter frame we wrote before sleeping. Do not blank
   // that retained frame, or the user sees: counter -> black -> counter.
-  gWokeFromDeepSleep =
-    (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0);
+  gWokeFromDeepSleep = (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0);
 
   const bool wokeFromDeepSleep = gWokeFromDeepSleep;
 
@@ -190,19 +248,13 @@ void setup() {
   Hardware::lvDisplay = lv_display_create(SCREEN_W, SCREEN_H);
   lv_display_set_color_format(Hardware::lvDisplay, LV_COLOR_FORMAT_RGB565);
   lv_display_set_flush_cb(Hardware::lvDisplay, Hardware::displayFlush);
-  lv_display_set_buffers(Hardware::lvDisplay,
-                         Hardware::drawBuffer, nullptr,
-                         sizeof(Hardware::drawBuffer),
-                         LV_DISPLAY_RENDER_MODE_PARTIAL);
+  lv_display_set_buffers(
+      Hardware::lvDisplay, Hardware::drawBuffer, nullptr, sizeof(Hardware::drawBuffer), LV_DISPLAY_RENDER_MODE_PARTIAL);
 
   // LVGL needs a regular tick. We service it from an esp_timer task instead
   // of spinning in loop() so timing stays steady even when the loop is busy.
   const esp_timer_create_args_t tickArgs = {
-    .callback = &Hardware::lvTickTask,
-    .arg = nullptr,
-    .dispatch_method = ESP_TIMER_TASK,
-    .name = "lv_tick"
-  };
+      .callback = &Hardware::lvTickTask, .arg = nullptr, .dispatch_method = ESP_TIMER_TASK, .name = "lv_tick"};
   esp_timer_handle_t tickHandle;
   esp_timer_create(&tickArgs, &tickHandle);
   esp_timer_start_periodic(tickHandle, LVGL_TICK_INTERVAL_MS * 1000UL);
@@ -221,10 +273,10 @@ void setup() {
     // write, so the display is guaranteed black before PWM enables the light.
     Hardware::tft.fillScreen(TFT_BLACK);
 
-    startupIntro = StartupIntro::start(
-      lv_screen_active(),
-      onStartupIntroFinished,
-      nullptr);
+    gGameUiPreparedForIntroReveal = false;
+
+    startupIntro =
+        StartupIntro::start(lv_screen_active(), onStartupIntroFinished, nullptr, prepareGameUiForIntroReveal);
 
     // Push the intro's first frame while still dark. Then the first visible
     // thing after manual wake is the intro, not the life counter.
@@ -271,7 +323,7 @@ void setup() {
 void loop() {
 #if ENABLE_STARTUP_INTRO
   if (startupIntro != nullptr) {
-    // Hold-to-skip: poll the raw finger-down register every loop tick.
+    // Hold-to-skip: poll the raw finger-down register at a modest cadence.
     // Hardware::readTouchFingerDownRaw() reads CST816S register 0x02
     // directly over I2C — the same mechanism the radial menu uses for
     // continuous hold tracking. It works before Hardware::touch.begin()
@@ -280,16 +332,21 @@ void loop() {
     // We require TSkipHold ms of uninterrupted contact to skip, so the
     // brief waking touch that triggers the deep-sleep wake interrupt can
     // never accidentally fire the skip.
-    const int rawDown = Hardware::readTouchFingerDownRaw();
-    if (rawDown == 1) {
-      startupIntro->notifyHoldStart();
-    } else if (rawDown == 0) {
-      startupIntro->notifyHoldEnd();
+    static uint32_t lastIntroTouchPollAt = 0;
+
+    if (Clock::tick(lastIntroTouchPollAt, 20)) {
+      const int rawDown = Hardware::readTouchFingerDownRaw();
+
+      if (rawDown == 1) {
+        startupIntro->notifyHoldStart();
+      } else if (rawDown == 0) {
+        startupIntro->notifyHoldEnd();
+      }
+      // rawDown == -1 is an I2C glitch, leave the hold state unchanged.
     }
-    // rawDown == -1 is an I2C glitch — leave the hold state unchanged.
 
     lv_timer_handler();
-    delay(LOOP_DELAY_MS);
+    delay(1);
     return;
   }
 #endif
@@ -314,8 +371,7 @@ void loop() {
   // Cancel early if the player has been healed out of the defeat state
   // (distance back > 0). Otherwise drive its animation tick.
   if (defeatOverlay.isActive()) {
-    LifeCounter& victim =
-      (defeatOverlay.player() == 1) ? gameUi.p2() : gameUi.p1();
+    LifeCounter& victim = (defeatOverlay.player() == 1) ? gameUi.p2() : gameUi.p1();
     if (!victim.isDefeated()) {
       defeatOverlay.cancel();
       gameUi.setCountersVisible(true, game.twoPlayer);

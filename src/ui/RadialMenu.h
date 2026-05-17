@@ -81,10 +81,12 @@ public:
     VIEW_BASE_SELECTOR = 4
   };
 
-  enum class LiftResult : uint8_t { NOTHING, CLOSE_MENU };
+  enum class LiftResult : uint8_t {
+    NOTHING,
+    CLOSE_MENU
+  };
 
-  void begin(lv_obj_t* parent, GameState* state, GameUi* ui,
-             Backlight* backlight, Battery* battery);
+  void begin(lv_obj_t* parent, GameState* state, GameUi* ui, Backlight* backlight, Battery* battery);
 
   bool isOpen() const {
     return _open;

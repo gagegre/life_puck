@@ -1,8 +1,11 @@
 {
-  // Treat LVGL config / font files as C even though some have unusual names.
+  // Treat Arduino / LVGL config / embedded headers correctly.
   "files.associations": {
+    "*.ino": "cpp",
+    "*.ipp": "cpp",
+    "*.tpp": "cpp",
     "lv_conf.h": "c",
-    "*.ino": "cpp"
+    "lvgl.h": "c"
   },
 
   // Hide build clutter from the explorer. PIO's auto-generated folders are
@@ -10,18 +13,41 @@
   "files.exclude": {
     "**/.pio": true,
     "**/.pioenvs": true,
-    "**/.piolibdeps": true
+    "**/.piolibdeps": true,
+    "**/.vscode/.browse.c_cpp.db*": true
   },
   "search.exclude": {
     "**/.pio": true,
     "**/.pioenvs": true,
-    "**/.piolibdeps": true
+    "**/.piolibdeps": true,
+    "**/.vscode/.browse.c_cpp.db*": true
   },
 
-  // Use LF on this repo regardless of OS, to avoid noisy diffs.
-  "files.eol": "\n",
+  // Formatting
+  "editor.formatOnSave": true,
+  "C_Cpp.clang_format_style": "file",
+  "C_Cpp.formatting": "clangFormat",
 
-  // PlatformIO IntelliSense uses its own engine; tell the VS Code C/C++
-  // extension to stay out of the way if it sneaks in.
-  "C_Cpp.intelliSenseEngine": "disabled"
+  "[cpp]": {
+    "editor.defaultFormatter": "ms-vscode.cpptools"
+  },
+  "[c]": {
+    "editor.defaultFormatter": "ms-vscode.cpptools"
+  },
+  "[h]": {
+    "editor.defaultFormatter": "ms-vscode.cpptools"
+  },
+  "[ino]": {
+    "editor.defaultFormatter": "ms-vscode.cpptools"
+  },
+
+  // Clean diffs.
+  "files.eol": "\n",
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+
+  // PlatformIO owns include paths, defines, compiler settings, etc.
+  "C_Cpp.default.configurationProvider": "platformio.platformio-ide",
+  "C_Cpp.intelliSenseEngine": "default",
+  "C_Cpp.errorSquiggles": "enabled"
 }

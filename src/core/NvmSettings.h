@@ -28,6 +28,7 @@ public:
   uint8_t getBrightness() const {
     return _prefs.getUChar("bri", BACKLIGHT_DEFAULT_LEVEL);
   }
+
   void setBrightness(uint8_t level) {
     _prefs.putUChar("bri", level);
   }
@@ -35,6 +36,7 @@ public:
   BatteryMode getBatteryMode() const {
     return (BatteryMode)_prefs.getUChar("batmode", (uint8_t)BatteryMode::AUTO);
   }
+
   void setBatteryMode(BatteryMode m) {
     _prefs.putUChar("batmode", (uint8_t)m);
   }
@@ -42,6 +44,7 @@ public:
   bool getBatteryShowPct() const {
     return _prefs.getBool("batpct", false);
   }
+
   void setBatteryShowPct(bool show) {
     _prefs.putBool("batpct", show);
   }
@@ -49,12 +52,15 @@ public:
   int getBaseLife1() const {
     return _prefs.getInt("blife1", 30);
   }
+
   void setBaseLife1(int v) {
     _prefs.putInt("blife1", v);
   }
+
   int getBaseLife2() const {
     return _prefs.getInt("blife2", 30);
   }
+  
   void setBaseLife2(int v) {
     _prefs.putInt("blife2", v);
   }

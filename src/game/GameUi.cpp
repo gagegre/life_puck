@@ -63,8 +63,10 @@ void GameUi::showAfterMenu(bool twoPlayerMode) {
 void GameUi::setCountersVisible(bool visible, bool twoPlayerMode) {
   _p1.setVisible(visible);
   _p2.setVisible(visible && twoPlayerMode);
-  if (twoPlayerMode && visible) lv_obj_remove_flag(_divider, LV_OBJ_FLAG_HIDDEN);
-  else lv_obj_add_flag(_divider, LV_OBJ_FLAG_HIDDEN);
+  if (twoPlayerMode && visible)
+    lv_obj_remove_flag(_divider, LV_OBJ_FLAG_HIDDEN);
+  else
+    lv_obj_add_flag(_divider, LV_OBJ_FLAG_HIDDEN);
 }
 
 void GameUi::resetBoth(bool countUpMode, bool twoPlayerMode) {

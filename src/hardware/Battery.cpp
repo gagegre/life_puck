@@ -45,9 +45,12 @@ bool Battery::shouldShow() const {
   if (_usbOnly) return false;  // USB power: hide the indicator entirely
   if (!_batteryPresent) return false;
   switch (_mode) {
-    case BatteryMode::SHOW: return true;
-    case BatteryMode::AUTO: return _percent <= BATTERY_AUTO_THRESHOLD || _isCharging;
-    case BatteryMode::HIDE: return false;
+    case BatteryMode::SHOW:
+      return true;
+    case BatteryMode::AUTO:
+      return _percent <= BATTERY_AUTO_THRESHOLD || _isCharging;
+    case BatteryMode::HIDE:
+      return false;
   }
   return false;
 }
@@ -72,8 +75,10 @@ void Battery::showOverlay() {
   _overlayVisible = true;
 
   char pctBuf[8];
-  if (_usbOnly) snprintf(pctBuf, sizeof(pctBuf), "USB");
-  else snprintf(pctBuf, sizeof(pctBuf), "%d%%", _percent);
+  if (_usbOnly)
+    snprintf(pctBuf, sizeof(pctBuf), "USB");
+  else
+    snprintf(pctBuf, sizeof(pctBuf), "%d%%", _percent);
   lv_label_set_text(_overlayPct, pctBuf);
 
   char voltBuf[16];
@@ -101,8 +106,7 @@ void Battery::hideOverlay() {
 
 void Battery::readVoltageNow() {
   _lastReadAt = Clock::now();
-  const float volts =
-    (analogReadMilliVolts(PIN_BATTERY_ADC) / 1000.0f) * BATTERY_DIVIDER_RATIO;
+  const float volts = (analogReadMilliVolts(PIN_BATTERY_ADC) / 1000.0f) * BATTERY_DIVIDER_RATIO;
   _lastVolts = volts;
 
   const bool wasUsbOnly = _usbOnly;
@@ -175,13 +179,14 @@ void Battery::refresh() {
   }
 
   const int visualPct = _isCharging ? _animPercent : _percent;
-  const lv_color_t color = _isCharging ? lv_color_hex(0x3A86FF)
-                                       : levelColor(_percent);
+  const lv_color_t color = _isCharging ? lv_color_hex(0x3A86FF) : levelColor(_percent);
 
   showArc(visualPct, color);
 
-  if (_showPercent) showPercentLabel(_percent, color);
-  else if (_gapLabel) lv_obj_add_flag(_gapLabel, LV_OBJ_FLAG_HIDDEN);
+  if (_showPercent)
+    showPercentLabel(_percent, color);
+  else if (_gapLabel)
+    lv_obj_add_flag(_gapLabel, LV_OBJ_FLAG_HIDDEN);
 }
 
 // ---- widget builders ------------------------------------------------------

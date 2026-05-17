@@ -7,14 +7,12 @@ void FlashManager::begin(lv_obj_t* parent) {
   makeArc(_arc1PPlus, COLOR_PLUS, 180, 360, parent, 48);
   makeArc(_arc1PMinus, COLOR_MINUS, 0, 180, parent, 48);
   constexpr int CUT_HALF_H = 36;
-  makeClippedArc(_arc2PP1Plus, COLOR_PLUS, 180, 270, parent, 34,
-                 0, 0, CENTER_X, CENTER_Y - CUT_HALF_H);
-  makeClippedArc(_arc2PP1Minus, COLOR_MINUS, 90, 180, parent, 34,
-                 0, CENTER_Y + CUT_HALF_H, CENTER_X, CENTER_Y - CUT_HALF_H);
-  makeClippedArc(_arc2PP2Plus, COLOR_PLUS, 0, 90, parent, 34,
-                 CENTER_X, CENTER_Y + CUT_HALF_H, CENTER_X, CENTER_Y - CUT_HALF_H);
-  makeClippedArc(_arc2PP2Minus, COLOR_MINUS, 270, 360, parent, 34,
-                 CENTER_X, 0, CENTER_X, CENTER_Y - CUT_HALF_H);
+  makeClippedArc(_arc2PP1Plus, COLOR_PLUS, 180, 270, parent, 34, 0, 0, CENTER_X, CENTER_Y - CUT_HALF_H);
+  makeClippedArc(
+      _arc2PP1Minus, COLOR_MINUS, 90, 180, parent, 34, 0, CENTER_Y + CUT_HALF_H, CENTER_X, CENTER_Y - CUT_HALF_H);
+  makeClippedArc(
+      _arc2PP2Plus, COLOR_PLUS, 0, 90, parent, 34, CENTER_X, CENTER_Y + CUT_HALF_H, CENTER_X, CENTER_Y - CUT_HALF_H);
+  makeClippedArc(_arc2PP2Minus, COLOR_MINUS, 270, 360, parent, 34, CENTER_X, 0, CENTER_X, CENTER_Y - CUT_HALF_H);
 }
 
 void FlashManager::trigger(bool isTop, bool isHealing, bool isP2, bool twoPlayerMode) {
@@ -79,8 +77,7 @@ void FlashManager::styleArc(lv_obj_t* arc, lv_color_t color, int s, int e, int w
   lv_arc_set_value(arc, 100);
 }
 
-void FlashManager::makeArc(lv_obj_t*& arc, lv_color_t color, int s, int e,
-                           lv_obj_t* parent, int width) {
+void FlashManager::makeArc(lv_obj_t*& arc, lv_color_t color, int s, int e, lv_obj_t* parent, int width) {
   arc = lv_arc_create(parent);
   lv_obj_set_size(arc, SCREEN_W, SCREEN_H);
   lv_obj_center(arc);
@@ -98,9 +95,16 @@ lv_obj_t* FlashManager::makeClip(lv_obj_t* parent, int x, int y, int w, int h) {
   return clip;
 }
 
-void FlashManager::makeClippedArc(lv_obj_t*& arc, lv_color_t color, int s, int e,
-                                  lv_obj_t* parent, int width,
-                                  int clipX, int clipY, int clipW, int clipH) {
+void FlashManager::makeClippedArc(lv_obj_t*& arc,
+                                  lv_color_t color,
+                                  int s,
+                                  int e,
+                                  lv_obj_t* parent,
+                                  int width,
+                                  int clipX,
+                                  int clipY,
+                                  int clipW,
+                                  int clipH) {
   lv_obj_t* clip = makeClip(parent, clipX, clipY, clipW, clipH);
   arc = lv_arc_create(clip);
   lv_obj_set_size(arc, SCREEN_W, SCREEN_H);
@@ -110,7 +114,7 @@ void FlashManager::makeClippedArc(lv_obj_t*& arc, lv_color_t color, int s, int e
 }
 
 void FlashManager::startFlash(Flash& f, lv_obj_t* arc) {
-  f = { true, Clock::now() };
+  f = {true, Clock::now()};
   // Reset to full opacity on every trigger so back-to-back changes
   // don't inherit a partly-faded arc from a previous flash.
   lv_obj_set_style_arc_opa(arc, LV_OPA_COVER, LV_PART_INDICATOR);
@@ -130,7 +134,6 @@ void FlashManager::fade(Flash& f, lv_obj_t* arc, uint32_t now) {
   }
   // Linear ramp: COVER → TRANSP. Use uint32 to avoid overflow in the
   // intermediate multiplication.
-  const lv_opa_t opa =
-    (lv_opa_t)((uint32_t)LV_OPA_COVER * (FLASH_MS - elapsed) / FLASH_MS);
+  const lv_opa_t opa = (lv_opa_t)((uint32_t)LV_OPA_COVER * (FLASH_MS - elapsed) / FLASH_MS);
   lv_obj_set_style_arc_opa(arc, opa, LV_PART_INDICATOR);
 }

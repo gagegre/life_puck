@@ -41,8 +41,7 @@ public:
 
   // Build LVGL labels and apply orientation. `flipped` is true for the
   // P2 counter in 2P mode (rendered upside-down for the opponent).
-  void begin(lv_obj_t* parent, FlashManager* flash,
-             bool isP2 = false, bool flipped = false);
+  void begin(lv_obj_t* parent, FlashManager* flash, bool isP2 = false, bool flipped = false);
 
   // ---- mutation ---------------------------------------------------------
 
@@ -145,6 +144,7 @@ private:
   uint32_t _bumpStartAt = 0;
   bool _resetActive = false;
   uint32_t _resetStartAt = 0;
+  uint32_t _resetLastStepAt = 0;
   int _resetFrom = 0;
   int _resetTo = 0;
   bool _pulsing = false;
