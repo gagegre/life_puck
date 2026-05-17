@@ -183,7 +183,7 @@ constexpr uint32_t LOOP_DELAY_MS = 5;
 // from electrical jitter or library quirks.
 constexpr uint32_t TOUCH_COOLDOWN_MS = 40;
 
-constexpr uint32_t CENTER_HOLD_MS = 450;         // soft timer before menu opens
+constexpr uint32_t CENTER_HOLD_MS = 850;         // soft timer before menu opens
 constexpr uint32_t RESET_HOLD_MS = 800;          // hold time to confirm a reset
 constexpr uint32_t MENU_RELEASE_GRACE_MS = 450;  // fallback when raw I2C touch read fails
 constexpr uint32_t MENU_DWELL_REVEAL_MS = 900;
