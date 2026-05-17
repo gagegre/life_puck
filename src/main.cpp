@@ -386,11 +386,7 @@ void loop() {
     }
   }
 
-  // Cancel undo-pending state after timeout with no confirmation.
-  if (undoPending.timedOut()) {
-    gameUi.clearAllUndoPending();
-    undoPending.cancel();
-  }
+  handleUndoPending();
 
   if (battery.mode() != BatteryMode::HIDE) battery.update();
   flashMgr.setContracted(battery.shouldShow());

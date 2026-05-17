@@ -72,6 +72,7 @@ static constexpr const char* COUNT_DOWN = "HP";
 static constexpr const char* COUNT_UP = "DAMAGE";
 static constexpr const char* UNDO = "UNDO";
 static constexpr const char* RESET = "RESET";
+static constexpr const char* HOLD = "HOLD";
 static constexpr const char* SLEEP = "SLEEP";
 static constexpr const char* SHOW_PERCENT = "SHOW %";
 static constexpr const char* STATE_ENABLED = "ENABLED";
@@ -183,6 +184,7 @@ constexpr uint32_t LOOP_DELAY_MS = 5;
 // than any human can tap, while preventing accidental double-fire
 // from electrical jitter or library quirks.
 constexpr uint32_t TOUCH_COOLDOWN_MS = 40;
+constexpr uint32_t HOLD_RELEASE_GESTURE_BLOCK_MS = 180;
 
 constexpr uint32_t CENTER_HOLD_MS = 450;         // soft timer before menu opens
 constexpr uint32_t RESET_HOLD_MS = 800;          // hold time to confirm a reset
@@ -190,6 +192,9 @@ constexpr uint32_t MENU_RELEASE_GRACE_MS = 450;  // fallback when raw I2C touch 
 constexpr uint32_t MENU_DWELL_REVEAL_MS = 900;
 constexpr uint32_t MENU_DWELL_BACK_MS = 900;
 constexpr uint32_t MENU_DWELL_COMMIT_MS = 900;
+// Delay before showing the top-level radial dwell ring. Quick flick/release
+// selections stay visually clean, while longer holds still show progress.
+constexpr uint32_t MENU_DWELL_PROGRESS_DELAY_MS = 180;
 // After dragging a value in a radial sub-view and lifting the finger,
 // auto-commit and close the entire menu after this idle period.
 // Centre-tap to confirm (return to top ring) still works independently.

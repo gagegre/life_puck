@@ -43,6 +43,7 @@ extern ResetPendingOverlay resetPendingOverlay;
 extern ResetPending resetPending;
 extern DefeatOverlay defeatOverlay;
 extern UndoPending undoPending;
+extern UndoPendingOverlay undoPendingOverlay;
 extern TouchRouter touchRouter;
 extern GameState game;
 
@@ -63,6 +64,7 @@ void createRadialMenuOverlay();
 // Called from loop(). See App.cpp for behaviour details.
 void handleTouch();
 void handleResetPending();
+void handleUndoPending();
 void handleShake();
 
 // Drains a pending action queued by RadialMenu::fireAction(). Closes

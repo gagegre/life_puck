@@ -456,16 +456,6 @@ void LifeCounter::refreshLabel() {
   // unit: white when healthy, yellow / red as defeat approaches.
   if (!_baseLbl) return;
 
-  if (_undoPending && _bundleOrigin >= 0) {
-    lv_obj_set_style_text_font(_baseLbl, &font_awesome_icons, 0);
-    lv_obj_set_style_text_opa(_baseLbl, LV_OPA_COVER, 0);
-    lv_obj_set_style_text_color(_baseLbl, COLOR_MENU_ORANGE, 0);
-    lv_label_set_text(_baseLbl, FA_ICON_UNDO);
-    updatePivot(_baseLbl);
-    repositionSubLabels(_lastOx);
-    return;
-  }
-
   lv_obj_set_style_text_font(_baseLbl, LV_FONT_DEFAULT, 0);
 
   const int damage = _countUp ? _value : (_baseLife - _value);

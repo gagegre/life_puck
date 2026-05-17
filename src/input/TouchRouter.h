@@ -53,6 +53,34 @@ public:
     return true;
   }
 
+  // Drop gesture samples that arrive after a hold gesture has already been
+  // handled through raw finger tracking. Some CST816S sequences report one or
+  // more late SINGLE_TAP samples on release; this prevents that release from
+  // changing life.
+  void swallowNextGesture() {
+    _swallowNextGesture = true;
+    _gestureBlockUntil = Clock::now() + HOLD_RELEASE_GESTURE_BLOCK_MS;
+    _lastActionAt = Clock::now();
+  }
+
+  bool checkSwallowGesture() {
+    const uint32_t now = Clock::now();
+
+    if (_swallowing) {
+      _swallowNextGesture = true;
+      _gestureBlockUntil = now + HOLD_RELEASE_GESTURE_BLOCK_MS;
+      return true;
+    }
+
+    if (_swallowNextGesture || now < _gestureBlockUntil) {
+      _swallowNextGesture = false;
+      _gestureBlockUntil = now + HOLD_RELEASE_GESTURE_BLOCK_MS;
+      return true;
+    }
+
+    return false;
+  }
+
   // True while we're dropping events from a finger that was pressed
   // when the radial menu closed. Cleared on the next confirmed lift.
   bool isSwallowing() const {
@@ -90,17 +118,22 @@ public:
     return Clock::elapsed(_lastActionAt, TOUCH_COOLDOWN_MS);
   }
 
-  // Drop all subsequent gesture events until the finger is confirmed
-  // lifted. Used for radial-menu close touches and swipe gestures, so
-  // a held finger cannot retrigger the same action.
+  // Drop all subsequent gesture events until the finger is confirmed lifted.
+  // After lift, keep blocking briefly because the CST816S can emit a delayed
+  // SINGLE_TAP for the release.
   void swallowUntilLift() {
+    const uint32_t now = Clock::now();
     _swallowing = true;
-    _lastActionAt = Clock::now();
+    _swallowNextGesture = true;
+    _gestureBlockUntil = now + HOLD_RELEASE_GESTURE_BLOCK_MS;
+    _lastActionAt = now;
   }
 
 private:
   HoldState _hold;
   bool _swallowing = false;
   bool _swallowFirstTouch = false;
+  bool _swallowNextGesture = false;
+  uint32_t _gestureBlockUntil = 0;
   uint32_t _lastActionAt = 0;
 };

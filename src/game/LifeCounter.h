@@ -56,9 +56,9 @@ public:
     return _bundleOrigin >= 0;
   }
 
-  // Two-step swipe-undo: first swipe puts the counter into the
-  // "pending" visual state (dimmed + orange undo glyph); a second
-  // confirming swipe calls undo(). Any other action clears.
+  // Two-step swipe-undo: first swipe arms the counter visually
+  // (dimmed + restore delta); holding the centre confirmation ring
+  // calls undo(). Any other deliberate gesture clears it.
   bool beginUndoPending();
   void clearUndoPending();
 

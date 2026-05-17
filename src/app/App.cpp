@@ -29,6 +29,7 @@ ResetPendingOverlay resetPendingOverlay;
 ResetPending resetPending;
 DefeatOverlay defeatOverlay;
 UndoPending undoPending;
+UndoPendingOverlay undoPendingOverlay;
 TouchRouter touchRouter;
 GameState game;
 
@@ -49,6 +50,7 @@ void createGameUI() {
   gameUi.begin(scr, &flashMgr, &battery);
   modeToast.begin(scr);
   resetPendingOverlay.begin(scr);
+  undoPendingOverlay.begin(scr);
   defeatOverlay.begin(scr, scr);
 
   // Wire the defeat callback so a counter hitting distance=0 fires the
@@ -60,6 +62,7 @@ void createGameUI() {
   auto defeatCb = +[](int playerIdx) {
     gameUi.clearAllUndoPending();
     undoPending.cancel();
+    undoPendingOverlay.hide();
     resetPending.cancel();
     resetPendingOverlay.hide();
     gameUi.setCountersVisible(false, game.twoPlayer);
@@ -279,6 +282,7 @@ void drainPendingMenuAction() {
     // follow-up SINGLE_TAP for that same press and bump the life counter
     // unexpectedly.
     touchRouter.swallowUntilLift();
+    touchRouter.swallowNextGesture();
   }
   executeMenuAction(a);
   // Save brightness/battery prefs whenever a sub-view committed them.
@@ -293,6 +297,7 @@ void restartFromDefeatOverlay() {
   gameUi.setCountersVisible(true, game.twoPlayer);
   gameUi.resetBoth(game.countUp, game.twoPlayer);
   undoPending.cancel();
+  undoPendingOverlay.hide();
   gameUi.clearAllUndoPending();
   resetPending.cancel();
   resetPendingOverlay.hide();
@@ -322,15 +327,17 @@ void restartFromDefeatOverlay() {
 //                                          gestures, swallow idle
 //   7. Touch-locked                     -> centre-hold only
 //   8. Cooldown / per-session latch     -> drop redundant samples
-//   9. Undo pending                     -> swipe-back confirms / else cancels
+//   9. Undo pending                     -> centre hold confirms; release is swallowed
 //  10. Otherwise                        -> tap/swipe routes to LifeCounter
 // ==============================================================
 
 void handleTouch() {
   const uint32_t now = Clock::now();
 
-  // Open the menu when the soft hold timer elapses.
-  if (!radialMenu.isOpen() && touchRouter.holdComplete(now)) {
+  // Open the menu when the soft hold timer elapses. Armed confirmation
+  // states own the centre hold, so they must not accidentally open RadialMenu.
+  if (!radialMenu.isOpen() && !resetPending.active && !undoPending.active &&
+      !defeatOverlay.isActive() && touchRouter.holdComplete(now)) {
     radialMenu.show();
     touchRouter.markHoldOpenedMenu();
     touchRouter.recordAction();
@@ -352,6 +359,40 @@ void handleTouch() {
     return;
   }
 
+  // While undo-pending, block normal game input. The swipe only arms undo;
+  // confirmation starts after that swipe finger has lifted and the next
+  // deliberate touch begins in the centre.
+  if (undoPending.active) {
+    touchRouter.resetHold();
+    backlight.recordActivity();
+
+    // The undo-arming swipe calls swallowUntilLift(). Do not treat the tail of
+    // that same swipe as a cancel gesture; just wait until the finger is really
+    // up so the user can perform the centre hold cleanly.
+    if (touchRouter.isSwallowing()) {
+      touchRouter.onNoSample();
+      return;
+    }
+
+    if (hasTouched) {
+      const bool isCenter = abs(Hardware::touch.data.x - CENTER_X) <= CENTER_TAP_HALF &&
+                            abs(Hardware::touch.data.y - CENTER_Y) <= CENTER_TAP_HALF;
+      if (isCenter) {
+        if (!undoPending.fingerDown) undoPending.beginHold();
+      } else if (gesture != 0) {
+        undoPending.clearHold();
+        undoPendingOverlay.setProgress(0.0f);
+        gameUi.clearAllUndoPending();
+        undoPending.cancel();
+        undoPendingOverlay.hide();
+        touchRouter.swallowUntilLift();
+        touchRouter.swallowNextGesture();
+      }
+    }
+
+    return;
+  }
+
   // ---- No new sample this tick ----
   if (!hasTouched) {
     const int raw = touchRouter.onNoSample();
@@ -363,7 +404,11 @@ void handleTouch() {
       } else {
         const bool releaseConfirmed = (raw == 0);
         const auto lift = radialMenu.notifyFingerLifted(releaseConfirmed);
-        if (lift == RadialMenu::LiftResult::CLOSE_MENU) radialMenu.close();
+        if (lift == RadialMenu::LiftResult::CLOSE_MENU) {
+          radialMenu.close();
+          touchRouter.recordAction();
+          touchRouter.swallowNextGesture();
+        }
       }
       drainPendingMenuAction();
     }
@@ -379,6 +424,12 @@ void handleTouch() {
 
   // Discard the touch that woke us from deep sleep.
   if (touchRouter.checkSwallowFirstTouch()) return;
+
+  // Drop any touch sample that belongs to a hold/release gesture we already
+  // handled through raw finger tracking. This is intentionally stronger than
+  // a one-shot because the CST816S can emit delayed SINGLE_TAP samples after
+  // long holds.
+  if (touchRouter.checkSwallowGesture()) return;
 
   // BASE LOST is a modal restart state. While it is visible, block all
   // normal game/menu input. A tap restarts both counters and hides it.
@@ -426,26 +477,6 @@ void handleTouch() {
   const bool isP2Side = game.twoPlayer && (x >= CENTER_X);
   LifeCounter& target = isP2Side ? gameUi.p2() : gameUi.p1();
 
-  // ---- Undo-pending intercept ----
-  // Swipe back (opposite direction to trigger) = confirm.
-  // Everything else = cancel.
-  if (undoPending.active) {
-    LifeCounter& undoTarget = (undoPending.player == 1) ? gameUi.p2() : gameUi.p1();
-    const bool targetIsP2 = (undoPending.player == 1);
-    const bool isConfirm =
-        (!targetIsP2 && gesture == Gesture::SWIPE_RIGHT) || (targetIsP2 && gesture == Gesture::SWIPE_LEFT);
-    undoTarget.clearUndoPending();
-    undoPending.cancel();
-    if (isConfirm) {
-      undoTarget.undo();
-      modeToast.show(FA_ICON_UNDO, UiText::UNDO, COLOR_FG);
-    }
-    // Confirm/cancel is also a swipe action; consume the rest of this
-    // held finger so it cannot retrigger or re-enter undo.
-    touchRouter.swallowUntilLift();
-    return;
-  }
-
   switch (gesture) {
     case Gesture::SWIPE_UP:
       // In 2P, swipe up on the P2 (flipped) half should *decrease* by 5
@@ -463,11 +494,12 @@ void handleTouch() {
     case Gesture::SWIPE_LEFT:
     case Gesture::SWIPE_RIGHT: {
       // P1 trigger = SWIPE_LEFT; P2 trigger = SWIPE_RIGHT (their rotated "left").
-      // The opposite direction is reserved for confirming undo.
+      // The confirm step is now a centre hold; the swipe only arms undo.
       const bool isTrigger =
           (!isP2Side && gesture == Gesture::SWIPE_LEFT) || (isP2Side && gesture == Gesture::SWIPE_RIGHT);
       if (isTrigger && target.beginUndoPending()) {
         undoPending.begin(isP2Side ? 1 : 0);
+        undoPendingOverlay.show(undoPending.player, game.twoPlayer);
         // Prevent held undo-swipe samples from immediately cancelling
         // the pending state and causing visible flicker.
         touchRouter.swallowUntilLift();
@@ -517,13 +549,62 @@ void handleResetPending() {
       resetPendingOverlay.hide();
       gameUi.resetBoth(game.countUp, game.twoPlayer);
       modeToast.show(FA_ICON_RESET, UiText::RESET, COLOR_MINUS);
+      touchRouter.swallowUntilLift();
+      touchRouter.swallowNextGesture();
       backlight.recordActivity();
     }
   } else if (raw == 0 && resetPending.fingerDown) {
-    // Finger lifted before full - arc empties, stay in pending.
+    // Finger lifted before full - arc empties, stay in pending. Consume the
+    // possible late release tap, same as undo/menu holds.
     resetPending.fingerDown = false;
     resetPending.holdStartAt = 0;
     resetPendingOverlay.setProgress(0.0f);
+    touchRouter.swallowUntilLift();
+    touchRouter.swallowNextGesture();
+  }
+}
+
+// ==============================================================
+// handleUndoPending
+//
+// Swipe arms undo; holding the centre confirms it. This mirrors the reset
+// ring UX so destructive/large actions use the same interaction grammar.
+// ==============================================================
+
+void handleUndoPending() {
+  if (!undoPending.active) return;
+
+  if (undoPending.timedOut()) {
+    gameUi.clearAllUndoPending();
+    undoPending.cancel();
+    undoPendingOverlay.hide();
+    return;
+  }
+
+  const int raw = Hardware::readTouchFingerDownRaw();
+
+  if (raw == 1 && undoPending.fingerDown) {
+    undoPendingOverlay.setProgress(undoPending.holdProgress());
+    backlight.recordActivity();
+
+    if (undoPending.holdComplete()) {
+      LifeCounter& undoTarget = (undoPending.player == 1) ? gameUi.p2() : gameUi.p1();
+      undoTarget.clearUndoPending();
+      undoPending.cancel();
+      undoPendingOverlay.hide();
+      if (undoTarget.undo()) modeToast.show(FA_ICON_UNDO, UiText::UNDO, COLOR_MENU_ORANGE);
+      touchRouter.swallowUntilLift();
+      touchRouter.swallowNextGesture();
+      backlight.recordActivity();
+    }
+  } else if (raw == 0 && undoPending.fingerDown) {
+    // Finger lifted before full - arc empties, stay armed until timeout.
+    // The release can still be reported as a late SINGLE_TAP by the touch IC;
+    // consume that next gesture so it cannot change the life counter.
+    undoPending.clearHold();
+    undoPendingOverlay.setProgress(0.0f);
+    touchRouter.swallowUntilLift();
+    touchRouter.swallowNextGesture();
   }
 }
 
@@ -538,6 +619,7 @@ void handleShake() {
   if (undoPending.active) {
     gameUi.clearAllUndoPending();
     undoPending.cancel();
+    undoPendingOverlay.hide();
   }
   // Enter (or restart) reset-pending; never reset immediately.
   resetPending.begin();

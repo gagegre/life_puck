@@ -13,6 +13,8 @@
 #include "Battery.h"
 #include "Backlight.h"
 #include "Clock.h"
+#include "Animation.h"
+#include "Theme.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -160,6 +162,9 @@ struct RingSegment {
   MenuAction action = MenuAction::NONE;
   const char* icon = "";
   lv_color_t color = lv_color_hex(0xFFFFFF);
+  float startDeg = 0.0f;
+  float endDeg = 0.0f;
+  float centreDeg = 0.0f;
 };
 
 void placeRadial(lv_obj_t* obj, float deg) {
@@ -187,6 +192,34 @@ lv_obj_t* makeRingSegment(lv_obj_t* parent, float degStart, float degEnd, lv_col
   lv_obj_set_style_arc_rounded(arc, false, LV_PART_MAIN);
   lv_obj_set_style_arc_rounded(arc, false, LV_PART_INDICATOR);
   lv_obj_remove_flag(arc, LV_OBJ_FLAG_CLICKABLE);
+  return arc;
+}
+
+lv_obj_t* makeInnerProgressArc(lv_obj_t* parent) {
+  lv_obj_t* arc = lv_arc_create(parent);
+
+  // Dwell progress uses the same visual radius as the toast disc's outer
+  // rim (120 px diameter / 60 px radius). This keeps the radial-menu
+  // dwell indicator visually aligned with the existing modal/confirm ring
+  // language instead of sitting awkwardly between the centre and outer arcs.
+  constexpr int kWidth = 3;
+  constexpr int kSize = 120;
+  lv_obj_set_size(arc, kSize, kSize);
+  lv_obj_center(arc);
+  lv_arc_set_rotation(arc, 0);
+  lv_arc_set_bg_angles(arc, 0, 360);
+  lv_arc_set_angles(arc, 0, 0);
+  lv_obj_set_style_opa(arc, LV_OPA_TRANSP, LV_PART_KNOB);
+  lv_obj_set_style_arc_width(arc, kWidth, LV_PART_MAIN);
+  lv_obj_set_style_arc_width(arc, kWidth, LV_PART_INDICATOR);
+  lv_obj_set_style_arc_color(arc, Theme::Core::RingTrack, LV_PART_MAIN);
+  lv_obj_set_style_arc_color(arc, Theme::Menu::Progress, LV_PART_INDICATOR);
+  lv_obj_set_style_arc_opa(arc, LV_OPA_30, LV_PART_MAIN);
+  lv_obj_set_style_arc_opa(arc, LV_OPA_COVER, LV_PART_INDICATOR);
+  lv_obj_set_style_arc_rounded(arc, true, LV_PART_MAIN);
+  lv_obj_set_style_arc_rounded(arc, true, LV_PART_INDICATOR);
+  lv_obj_remove_flag(arc, LV_OBJ_FLAG_CLICKABLE);
+  lv_obj_add_flag(arc, LV_OBJ_FLAG_HIDDEN);
   return arc;
 }
 
@@ -223,12 +256,12 @@ public:
                                                            MenuAction::SLEEP,
                                                            MenuAction::BASE_SELECTOR};
     static const lv_color_t kColors[MENU_ACTION_COUNT] = {
-        COLOR_MENU_BLUE,
-        COLOR_MENU_ORANGE,
-        COLOR_MENU_PINK,
-        COLOR_MENU_YELLOW,
-        COLOR_MENU_SLEEP,
-        COLOR_MENU_ORANGE  // BASE_SELECTOR
+        Theme::Menu::Players,
+        Theme::Menu::Count,
+        Theme::Menu::Battery,
+        Theme::Menu::Brightness,
+        Theme::Menu::Sleep,
+        Theme::Menu::BaseLife,
     };
 
     for (uint8_t i = 0; i < MENU_ACTION_COUNT; ++i) {
@@ -240,9 +273,15 @@ public:
       s.action = kActions[i];
       s.color = kColors[i];
       s.icon = iconForAction(s.action, _host->game());
+      s.startDeg = normalizeDeg(startDeg);
+      s.endDeg = normalizeDeg(endDeg);
+      s.centreDeg = normalizeDeg(centreDeg);
       s.arc = makeRingSegment(_host->overlay(), startDeg, endDeg, s.color);
       s.iconLbl = makeIconLabel(_host->overlay(), s.icon, centreDeg);
     }
+    // Dwell/quick-release progress lives on the menu's inner edge. The outer
+    // segment only highlights; the small central ring fills while hovering.
+    _innerProgressArc = makeInnerProgressArc(_host->overlay());
   }
 
   void onEnter() override {
@@ -256,13 +295,18 @@ public:
     _hovered = MenuAction::NONE;
     _hoveredAt = 0;
     _committed = false;
+    _hoverProgress.stop();
+    hideProgress();
     renderCentre();
   }
 
   void onExit() override {
+    clearHoverState();
     for (auto& s : _segs) {
+      lv_obj_set_style_arc_color(s.arc, COLOR_RING_BG, LV_PART_MAIN);
       lv_obj_set_style_arc_opa(s.arc, LV_OPA_TRANSP, LV_PART_MAIN);
       lv_obj_set_style_arc_opa(s.arc, LV_OPA_TRANSP, LV_PART_INDICATOR);
+      lv_obj_set_style_text_color(s.iconLbl, COLOR_FG, 0);
       lv_obj_add_flag(s.iconLbl, LV_OBJ_FLAG_HIDDEN);
     }
   }
@@ -279,13 +323,16 @@ public:
       _hovered = MenuAction::NONE;
       _hoveredAt = 0;
       _committed = false;
+      _hoverProgress.stop();
+      hideProgress();
       redrawHighlight();
     }
   }
 
   void tick(uint32_t now) override {
-    (void)now;
     if (_committed || _hovered == MenuAction::NONE) return;
+
+    updateProgress(now);
 
     // BRIGHTNESS opens its slider after the same dwell.
     if (_hovered == MenuAction::BRIGHTNESS) {
@@ -323,18 +370,30 @@ public:
 
     // Everything else commits after the longer dwell.
     if (Clock::elapsed(_hoveredAt, MENU_DWELL_COMMIT_MS)) {
+      const MenuAction action = _hovered;
       _committed = true;
-      _host->fireAction(_hovered);
+      clearHoverState();
+      _host->fireAction(action);
     }
   }
 
   bool onLift() override {
     // Quick release on a hovered parent fires the cycle/short action.
-    if (_hovered == MenuAction::NONE) return true;
-    switch (_hovered) {
+    // Capture the action first, then immediately clear the hover visuals so
+    // no segment remains coloured while the menu is closing or handing off to
+    // a toast/sub-view.
+    const MenuAction action = _hovered;
+    if (action == MenuAction::NONE) {
+      clearHoverState();
+      return true;
+    }
+
+    clearHoverState();
+
+    switch (action) {
       case MenuAction::PLAYER_TOGGLE:
       case MenuAction::COUNT_DIRECTION:
-        _host->fireAction(_hovered);
+        _host->fireAction(action);
         break;
       case MenuAction::SLEEP:
         _host->setChoiceTarget(MenuAction::SLEEP);
@@ -364,9 +423,20 @@ public:
 
 private:
   RingSegment _segs[MENU_ACTION_COUNT];
+  lv_obj_t* _innerProgressArc = nullptr;
+  TimedAnimation _hoverProgress;
   MenuAction _hovered = MenuAction::NONE;
   uint32_t _hoveredAt = 0;
   bool _committed = false;
+
+  void clearHoverState() {
+    _hovered = MenuAction::NONE;
+    _hoveredAt = 0;
+    _committed = false;
+    _hoverProgress.stop();
+    hideProgress();
+    redrawHighlight();
+  }
 
   MenuAction actionAt(const PolarHit& h) {
     if (!h.inRing) return MenuAction::NONE;
@@ -381,15 +451,95 @@ private:
     _hovered = a;
     _hoveredAt = Clock::now();
     _committed = false;
+    if (a == MenuAction::NONE) {
+      _hoverProgress.stop();
+      hideProgress();
+    } else {
+      _hoverProgress.start(dwellMsFor(a));
+    }
     redrawHighlight();
+    updateProgress(Clock::now());
     renderCentre();
+  }
+
+  uint32_t dwellMsFor(MenuAction a) const {
+    switch (a) {
+      case MenuAction::PLAYER_TOGGLE:
+      case MenuAction::COUNT_DIRECTION:
+      case MenuAction::BATTERY:
+      case MenuAction::BRIGHTNESS:
+      case MenuAction::SLEEP:
+      case MenuAction::BASE_SELECTOR:
+        return MENU_DWELL_REVEAL_MS;
+      default:
+        return MENU_DWELL_COMMIT_MS;
+    }
+  }
+
+  const RingSegment* hoveredSegment() const {
+    for (const auto& s : _segs) {
+      if (s.action == _hovered) return &s;
+    }
+    return nullptr;
+  }
+
+  void hideProgress() {
+    if (!_innerProgressArc) return;
+    lv_obj_add_flag(_innerProgressArc, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_style_arc_opa(_innerProgressArc, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_arc_opa(_innerProgressArc, LV_OPA_TRANSP, LV_PART_INDICATOR);
+    lv_arc_set_rotation(_innerProgressArc, 0);
+    lv_arc_set_bg_angles(_innerProgressArc, 0, 360);
+    lv_arc_set_angles(_innerProgressArc, 0, 0);
+  }
+
+  void updateProgress(uint32_t now) {
+    if (_hovered == MenuAction::NONE || !_innerProgressArc) {
+      hideProgress();
+      return;
+    }
+
+    const RingSegment* s = hoveredSegment();
+    if (!s) {
+      hideProgress();
+      return;
+    }
+
+    const uint32_t elapsedMs = _hoverProgress.elapsed(now);
+    const uint32_t dwellMs = dwellMsFor(_hovered);
+
+    // Do not show the ring immediately. This keeps quick-release selections
+    // feeling instant and uncluttered; only intentional holds reveal progress.
+    if (elapsedMs < MENU_DWELL_PROGRESS_DELAY_MS) {
+      hideProgress();
+      return;
+    }
+
+    const uint32_t visibleDuration = max<uint32_t>(1, dwellMs - MENU_DWELL_PROGRESS_DELAY_MS);
+    const uint32_t visibleElapsed = min<uint32_t>(elapsedMs - MENU_DWELL_PROGRESS_DELAY_MS, visibleDuration);
+    const float progress = constrain((float)visibleElapsed / (float)visibleDuration, 0.0f, 1.0f);
+
+    const int startAtSegmentCenter = (int)lroundf(s->centreDeg);
+    const int progressEnd = constrain((int)lroundf(360.0f * progress), 0, 360);
+
+    lv_arc_set_rotation(_innerProgressArc, startAtSegmentCenter);
+    lv_arc_set_bg_angles(_innerProgressArc, 0, 360);
+    lv_arc_set_angles(_innerProgressArc, 0, progressEnd);
+    lv_obj_set_style_arc_color(_innerProgressArc, Theme::Core::RingTrack, LV_PART_MAIN);
+    lv_obj_set_style_arc_color(_innerProgressArc, s->color, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_opa(_innerProgressArc, LV_OPA_30, LV_PART_MAIN);
+    lv_obj_set_style_arc_opa(_innerProgressArc, LV_OPA_COVER, LV_PART_INDICATOR);
+    lv_obj_remove_flag(_innerProgressArc, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(_innerProgressArc);
+    lv_obj_move_foreground(s->iconLbl);
   }
 
   void redrawHighlight() {
     for (auto& s : _segs) {
       const bool on = (s.action == _hovered);
-      lv_obj_set_style_arc_opa(s.arc, LV_OPA_90, LV_PART_MAIN);
-      lv_obj_set_style_arc_opa(s.arc, on ? LV_OPA_COVER : LV_OPA_TRANSP, LV_PART_INDICATOR);
+      lv_obj_set_style_arc_color(s.arc, on ? s.color : COLOR_RING_BG, LV_PART_MAIN);
+      lv_obj_set_style_arc_opa(s.arc, on ? LV_OPA_70 : LV_OPA_90, LV_PART_MAIN);
+      lv_obj_set_style_arc_opa(s.arc, LV_OPA_TRANSP, LV_PART_INDICATOR);
       lv_obj_set_style_text_color(s.iconLbl, on ? s.color : COLOR_FG, 0);
     }
   }
