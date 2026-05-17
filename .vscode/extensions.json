@@ -1,0 +1,12 @@
+{
+  // VS Code shows a notification suggesting these extensions the first time
+  // someone opens this folder. Don't add `ms-vscode.cpptools` here: PlatformIO
+  // bundles its own IntelliSense backend (clangd-based) and the two fight.
+  "recommendations": [
+    "platformio.platformio-ide"
+  ],
+  "unwantedRecommendations": [
+    "ms-vscode.cpptools",
+    "ms-vscode.cpptools-extension-pack"
+  ]
+}

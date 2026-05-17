@@ -1,0 +1,27 @@
+{
+  // Treat LVGL config / font files as C even though some have unusual names.
+  "files.associations": {
+    "lv_conf.h": "c",
+    "*.ino": "cpp"
+  },
+
+  // Hide build clutter from the explorer. PIO's auto-generated folders are
+  // huge and have nothing the user should edit.
+  "files.exclude": {
+    "**/.pio": true,
+    "**/.pioenvs": true,
+    "**/.piolibdeps": true
+  },
+  "search.exclude": {
+    "**/.pio": true,
+    "**/.pioenvs": true,
+    "**/.piolibdeps": true
+  },
+
+  // Use LF on this repo regardless of OS, to avoid noisy diffs.
+  "files.eol": "\n",
+
+  // PlatformIO IntelliSense uses its own engine; tell the VS Code C/C++
+  // extension to stay out of the way if it sneaks in.
+  "C_Cpp.intelliSenseEngine": "disabled"
+}

@@ -1,0 +1,23 @@
+# PlatformIO build artifacts and dependency caches. These are regenerated
+# from platformio.ini + lib_deps on every fresh checkout; committing them
+# bloats the repo and breaks cross-platform builds.
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# PlatformIO sometimes generates a stale c_cpp_properties.json in .vscode/
+# from the build config. Let PIO regenerate it on demand instead of pinning
+# a snapshot in version control.
+.vscode/c_cpp_properties.json
+.vscode/launch.json
+.vscode/ipch/
+
+# OS / editor clutter.
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Don't accidentally commit a local copy of the Arduino libraries if anyone
+# still drops them next to the project out of habit.
+libraries/
