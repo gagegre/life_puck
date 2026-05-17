@@ -1,4 +1,4 @@
-// Battery.cpp — see Battery.h for behaviour overview.
+// Battery.cpp -- see Battery.h for behaviour overview.
 
 #include "Battery.h"
 #include "Clock.h"
@@ -236,7 +236,7 @@ void Battery::createArc(lv_obj_t* parent) {
 }
 
 void Battery::createOverlay(lv_obj_t* parent) {
-  // Full-screen dim layer — hidden until showOverlay().
+  // Full-screen dim layer, hidden until showOverlay().
   _overlay = lv_obj_create(parent);
   lv_obj_remove_style_all(_overlay);
   lv_obj_set_size(_overlay, SCREEN_W, SCREEN_H);

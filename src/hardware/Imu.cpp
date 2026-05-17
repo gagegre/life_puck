@@ -1,4 +1,4 @@
-// Imu.cpp — QMI8658C 6-axis accelerometer driver.
+// Imu.cpp -- QMI8658C 6-axis accelerometer driver.
 
 #include "Imu.h"
 #include "Clock.h"
@@ -18,7 +18,10 @@ bool IMU::begin() {
   writeReg(0x03, 0x23);  // CTRL2: ±8 g, 500 Hz
   writeReg(0x08, 0x01);  // CTRL7: accel on
 
-  readAccel(_prevAx, _prevAy, _prevAz);
+  // Seed the previous-sample state. The Z component is read but
+  // discarded -- only the horizontal axes drive shake detection.
+  float scratchZ;
+  readAccel(_prevAx, _prevAy, scratchZ);
   _ok = true;
   return true;
 }
@@ -29,12 +32,12 @@ bool IMU::update() {
 
   float ax, ay, az;
   if (!readAccel(ax, ay, az)) return false;
+  (void)az;  // vertical axis ignored: shake detection is horizontal-only.
 
   const float dx = ax - _prevAx;
   const float dy = ay - _prevAy;
   _prevAx = ax;
   _prevAy = ay;
-  _prevAz = az;
 
   // Reset the reversal counter if too long has passed since the last cross.
   const uint32_t now = Clock::now();

@@ -111,7 +111,7 @@ void executeMenuAction(MenuAction action) {
 
     case MenuAction::PLAYER_TOGGLE:
       game.twoPlayer = !game.twoPlayer;
-      gameUi.resetBoth(game.countUp, /*twoPlayerMode=*/true);
+      gameUi.resetBoth(game.countUp);
       if (game.twoPlayer)
         gameUi.enterTwoPlayer();
       else
@@ -125,7 +125,7 @@ void executeMenuAction(MenuAction action) {
     case MenuAction::SET_1P:
       if (game.twoPlayer) {
         game.twoPlayer = false;
-        gameUi.resetBoth(game.countUp, /*twoPlayerMode=*/true);
+        gameUi.resetBoth(game.countUp);
         gameUi.exitTwoPlayer();
       }
       radialMenu.onGameStateChanged();
@@ -135,7 +135,7 @@ void executeMenuAction(MenuAction action) {
     case MenuAction::SET_2P:
       if (!game.twoPlayer) {
         game.twoPlayer = true;
-        gameUi.resetBoth(game.countUp, /*twoPlayerMode=*/true);
+        gameUi.resetBoth(game.countUp);
         gameUi.enterTwoPlayer();
       }
       radialMenu.onGameStateChanged();
@@ -145,7 +145,7 @@ void executeMenuAction(MenuAction action) {
     case MenuAction::COUNT_DIRECTION:
       game.countUp = !game.countUp;
       gameUi.setCountUp(game.countUp);
-      gameUi.resetBoth(game.countUp, game.twoPlayer);
+      gameUi.resetBoth(game.countUp);
       radialMenu.onGameStateChanged();
       modeToast.show(iconForAction(MenuAction::COUNT_DIRECTION, game),
                      game.countUp ? UiText::COUNT_UP : UiText::COUNT_DOWN,
@@ -156,7 +156,7 @@ void executeMenuAction(MenuAction action) {
       if (game.countUp) {
         game.countUp = false;
         gameUi.setCountUp(false);
-        gameUi.resetBoth(game.countUp, game.twoPlayer);
+        gameUi.resetBoth(game.countUp);
       }
       radialMenu.onGameStateChanged();
       modeToast.show(FA_ICON_COUNT_DOWN, UiText::COUNT_DOWN, COLOR_MENU_ORANGE);
@@ -166,7 +166,7 @@ void executeMenuAction(MenuAction action) {
       if (!game.countUp) {
         game.countUp = true;
         gameUi.setCountUp(true);
-        gameUi.resetBoth(game.countUp, game.twoPlayer);
+        gameUi.resetBoth(game.countUp);
       }
       radialMenu.onGameStateChanged();
       modeToast.show(FA_ICON_COUNT_UP, UiText::COUNT_UP, COLOR_MENU_ORANGE);
@@ -179,7 +179,7 @@ void executeMenuAction(MenuAction action) {
       gameUi.setBaseLife2(game.baseLife2);
 
       // Only after explicit confirm: reset both players to the new full base life.
-      gameUi.resetBoth(game.countUp, game.twoPlayer);
+      gameUi.resetBoth(game.countUp);
 
       nvm.setBaseLife1(game.baseLife1);
       nvm.setBaseLife2(game.baseLife2);
@@ -295,7 +295,7 @@ void drainPendingMenuAction() {
 void restartFromDefeatOverlay() {
   defeatOverlay.cancel();
   gameUi.setCountersVisible(true, game.twoPlayer);
-  gameUi.resetBoth(game.countUp, game.twoPlayer);
+  gameUi.resetBoth(game.countUp);
   undoPending.cancel();
   undoPendingOverlay.hide();
   gameUi.clearAllUndoPending();
@@ -334,9 +334,36 @@ void restartFromDefeatOverlay() {
 void handleTouch() {
   const uint32_t now = Clock::now();
 
+  // ---- Two-finger detection ----
+  // Poll the raw finger count every tick. Aborts (cancelTwoFinger) cover
+  // every context in which the gesture is not appropriate: confirmation
+  // overlays, the modal defeat screen, and the radial menu. The actual
+  // single-finger gesture stream still flows below; if anything one-finger
+  // (tap, swipe) fires during the contact, pollTwoFinger() will not arm,
+  // because gesture-handling resets the contact via cancelTwoFinger() too.
+  const int fingerCount = Hardware::readTouchFingerCountRaw();
+  if (radialMenu.isOpen() || defeatOverlay.isActive() || resetPending.active() || undoPending.active()) {
+    touchRouter.cancelTwoFinger();
+  } else {
+    touchRouter.pollTwoFinger(fingerCount);
+    if (touchRouter.takeTwoFingerTap()) {
+      // Two-finger tap toggles 1P / 2P. Same shortcut as the radial menu's
+      // PLAYER_TOGGLE action -- routing through executeMenuAction() keeps
+      // the toast, reset animation, and persistence consistent with the
+      // menu path.
+      executeMenuAction(MenuAction::PLAYER_TOGGLE);
+      // The next gesture sample may be a stale single-tap from the multi-
+      // touch sequence; swallow it so it doesn't bump the life counter.
+      touchRouter.swallowUntilLift();
+      touchRouter.swallowNextGesture();
+      backlight.recordActivity();
+      return;
+    }
+  }
+
   // Open the menu when the soft hold timer elapses. Armed confirmation
   // states own the centre hold, so they must not accidentally open RadialMenu.
-  if (!radialMenu.isOpen() && !resetPending.active && !undoPending.active &&
+  if (!radialMenu.isOpen() && !resetPending.active() && !undoPending.active() &&
       !defeatOverlay.isActive() && touchRouter.holdComplete(now)) {
     radialMenu.show();
     touchRouter.markHoldOpenedMenu();
@@ -349,7 +376,7 @@ void handleTouch() {
 
   // While reset-pending, block normal game input.
   // Any deliberate gesture (tap or swipe) dismisses the confirmation.
-  if (resetPending.active) {
+  if (resetPending.active()) {
     touchRouter.resetHold();
     backlight.recordActivity();
     if (hasTouched && gesture != 0) {
@@ -362,7 +389,7 @@ void handleTouch() {
   // While undo-pending, block normal game input. The swipe only arms undo;
   // confirmation starts after that swipe finger has lifted and the next
   // deliberate touch begins in the centre.
-  if (undoPending.active) {
+  if (undoPending.active()) {
     touchRouter.resetHold();
     backlight.recordActivity();
 
@@ -378,9 +405,9 @@ void handleTouch() {
       const bool isCenter = abs(Hardware::touch.data.x - CENTER_X) <= CENTER_TAP_HALF &&
                             abs(Hardware::touch.data.y - CENTER_Y) <= CENTER_TAP_HALF;
       if (isCenter) {
-        if (!undoPending.fingerDown) undoPending.beginHold();
+        if (!undoPending.fingerDown()) undoPending.beginHold();
       } else if (gesture != 0) {
-        undoPending.clearHold();
+        undoPending.releaseHold();
         undoPendingOverlay.setProgress(0.0f);
         gameUi.clearAllUndoPending();
         undoPending.cancel();
@@ -474,6 +501,11 @@ void handleTouch() {
   if (!touchRouter.cooldownExpired()) return;
 
   // Game input.
+  // A genuine single-finger gesture from the panel cancels any partial
+  // two-finger-tap accumulation so a swipe with a stray contact doesn't
+  // get mis-classified on release.
+  if (gesture != 0) touchRouter.cancelTwoFinger();
+
   const bool isP2Side = game.twoPlayer && (x >= CENTER_X);
   LifeCounter& target = isP2Side ? gameUi.p2() : gameUi.p1();
 
@@ -498,7 +530,7 @@ void handleTouch() {
       const bool isTrigger =
           (!isP2Side && gesture == Gesture::SWIPE_LEFT) || (isP2Side && gesture == Gesture::SWIPE_RIGHT);
       if (isTrigger && target.beginUndoPending()) {
-        undoPending.begin(isP2Side ? 1 : 0);
+        undoPending.arm(isP2Side ? 1 : 0);
         undoPendingOverlay.show(undoPending.player, game.twoPlayer);
         // Prevent held undo-swipe samples from immediately cancelling
         // the pending state and causing visible flicker.
@@ -526,7 +558,7 @@ void handleTouch() {
 // ==============================================================
 
 void handleResetPending() {
-  if (!resetPending.active) return;
+  if (!resetPending.active()) return;
 
   if (resetPending.timedOut()) {
     resetPending.cancel();
@@ -537,27 +569,23 @@ void handleResetPending() {
   const int raw = Hardware::readTouchFingerDownRaw();
 
   if (raw == 1) {
-    if (!resetPending.fingerDown) {
-      resetPending.fingerDown = true;
-      resetPending.holdStartAt = Clock::now();
-    }
+    if (!resetPending.fingerDown()) resetPending.beginHold();
     resetPendingOverlay.setProgress(resetPending.holdProgress());
     backlight.recordActivity();
 
     if (resetPending.holdComplete()) {
       resetPending.cancel();
       resetPendingOverlay.hide();
-      gameUi.resetBoth(game.countUp, game.twoPlayer);
+      gameUi.resetBoth(game.countUp);
       modeToast.show(FA_ICON_RESET, UiText::RESET, COLOR_MINUS);
       touchRouter.swallowUntilLift();
       touchRouter.swallowNextGesture();
       backlight.recordActivity();
     }
-  } else if (raw == 0 && resetPending.fingerDown) {
+  } else if (raw == 0 && resetPending.fingerDown()) {
     // Finger lifted before full - arc empties, stay in pending. Consume the
     // possible late release tap, same as undo/menu holds.
-    resetPending.fingerDown = false;
-    resetPending.holdStartAt = 0;
+    resetPending.releaseHold();
     resetPendingOverlay.setProgress(0.0f);
     touchRouter.swallowUntilLift();
     touchRouter.swallowNextGesture();
@@ -572,7 +600,7 @@ void handleResetPending() {
 // ==============================================================
 
 void handleUndoPending() {
-  if (!undoPending.active) return;
+  if (!undoPending.active()) return;
 
   if (undoPending.timedOut()) {
     gameUi.clearAllUndoPending();
@@ -583,7 +611,7 @@ void handleUndoPending() {
 
   const int raw = Hardware::readTouchFingerDownRaw();
 
-  if (raw == 1 && undoPending.fingerDown) {
+  if (raw == 1 && undoPending.fingerDown()) {
     undoPendingOverlay.setProgress(undoPending.holdProgress());
     backlight.recordActivity();
 
@@ -597,11 +625,11 @@ void handleUndoPending() {
       touchRouter.swallowNextGesture();
       backlight.recordActivity();
     }
-  } else if (raw == 0 && undoPending.fingerDown) {
+  } else if (raw == 0 && undoPending.fingerDown()) {
     // Finger lifted before full - arc empties, stay armed until timeout.
     // The release can still be reported as a late SINGLE_TAP by the touch IC;
     // consume that next gesture so it cannot change the life counter.
-    undoPending.clearHold();
+    undoPending.releaseHold();
     undoPendingOverlay.setProgress(0.0f);
     touchRouter.swallowUntilLift();
     touchRouter.swallowNextGesture();
@@ -616,13 +644,13 @@ void handleShake() {
   if (!imu.update()) return;
   if (defeatOverlay.isActive()) return;  // BASE LOST uses tap-to-restart instead
   if (radialMenu.isOpen()) return;       // ignore while in menu
-  if (undoPending.active) {
+  if (undoPending.active()) {
     gameUi.clearAllUndoPending();
     undoPending.cancel();
     undoPendingOverlay.hide();
   }
   // Enter (or restart) reset-pending; never reset immediately.
-  resetPending.begin();
+  resetPending.arm();
   resetPendingOverlay.show();
   backlight.recordActivity();
 }

@@ -69,10 +69,11 @@ void GameUi::setCountersVisible(bool visible, bool twoPlayerMode) {
     lv_obj_add_flag(_divider, LV_OBJ_FLAG_HIDDEN);
 }
 
-void GameUi::resetBoth(bool countUpMode, bool twoPlayerMode) {
+void GameUi::resetBoth(bool countUpMode) {
   _p1.reset(countUpMode);
-  _p2.reset(countUpMode);  // always reset P2 too so base label stays in sync
-  (void)twoPlayerMode;
+  // Always reset P2 too so its base label stays in sync even when 1P is
+  // active; P2's visibility is controlled separately by enter/exitTwoPlayer().
+  _p2.reset(countUpMode);
 }
 
 void GameUi::restoreValues(int p1Life, int p2Life) {

@@ -44,14 +44,6 @@ void UndoPendingOverlay::begin(lv_obj_t* parent) {
   lv_label_set_text(_icon, FA_ICON_UNDO);
   lv_obj_align(_icon, LV_ALIGN_CENTER, 0, 0);
   lv_obj_add_flag(_icon, LV_OBJ_FLAG_HIDDEN);
-
-  _hint = lv_label_create(parent);
-  lv_obj_set_style_text_font(_hint, LV_FONT_DEFAULT, 0);
-  lv_obj_set_style_text_color(_hint, Theme::Confirm::Undo, 0);
-  lv_obj_set_style_text_opa(_hint, LV_OPA_COVER, 0);
-  lv_label_set_text(_hint, UiText::HOLD);
-  lv_obj_align(_hint, LV_ALIGN_CENTER, 0, 20);
-  lv_obj_add_flag(_hint, LV_OBJ_FLAG_HIDDEN);
 }
 
 void UndoPendingOverlay::show(int player, bool twoPlayerMode) {
@@ -61,24 +53,19 @@ void UndoPendingOverlay::show(int player, bool twoPlayerMode) {
   lv_obj_remove_flag(_dim, LV_OBJ_FLAG_HIDDEN);
   lv_obj_remove_flag(_arc, LV_OBJ_FLAG_HIDDEN);
   lv_obj_remove_flag(_icon, LV_OBJ_FLAG_HIDDEN);
-  // Keep undo visually consistent with ResetPendingOverlay: icon + ring only.
-  lv_obj_add_flag(_hint, LV_OBJ_FLAG_HIDDEN);
   lv_obj_move_foreground(_dim);
   lv_obj_move_foreground(_arc);
   lv_obj_move_foreground(_icon);
-  lv_obj_move_foreground(_hint);
 }
 
 void UndoPendingOverlay::hide() {
   lv_obj_add_flag(_dim, LV_OBJ_FLAG_HIDDEN);
   lv_obj_add_flag(_arc, LV_OBJ_FLAG_HIDDEN);
   lv_obj_add_flag(_icon, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_add_flag(_hint, LV_OBJ_FLAG_HIDDEN);
 }
 
 void UndoPendingOverlay::setProgress(float p) {
   lv_arc_set_value(_arc, (int)(constrain(p, 0.0f, 1.0f) * 100.0f));
   lv_obj_move_foreground(_arc);
   lv_obj_move_foreground(_icon);
-  lv_obj_move_foreground(_hint);
 }

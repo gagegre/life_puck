@@ -29,7 +29,7 @@
 
 /* Drawing */
 #define LV_USE_DRAW_SW 1
-#define LV_USE_DRAW_SW_ASM LV_DRAW_SW_ASM_NONE /* Disable ARM assembly — incompatible with ESP32 Xtensa */
+#define LV_USE_DRAW_SW_ASM LV_DRAW_SW_ASM_NONE /* Disable ARM assembly, incompatible with ESP32 Xtensa */
 
 /* GPU - none (ESP32 is Xtensa, not ARM) */
 #define LV_USE_DRAW_OPENGLES 0

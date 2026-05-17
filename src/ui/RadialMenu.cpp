@@ -232,9 +232,6 @@ lv_obj_t* makeIconLabel(lv_obj_t* parent, const char* sym, float deg) {
   return lbl;
 }
 
-// makeTextLabel removed -- it was declared but never used in the original
-// (a leftover from when ChoiceView used text rather than icons).
-
 }  // namespace
 
 // ==============================================================
@@ -614,8 +611,6 @@ public:
 
   void onEnter() override {
     _hoverIdx = -1;
-    _committed = false;
-    _hoveredAt = 0;
     configure(_host->choiceTarget());
     updateHighlight();
     renderCentre(-1);
@@ -635,8 +630,6 @@ public:
     const int idx = segmentAt(h);
     if (idx != _hoverIdx) {
       _hoverIdx = idx;
-      _hoveredAt = Clock::now();
-      _committed = false;
       updateHighlight();
       renderCentre(idx);
     }
@@ -645,7 +638,6 @@ public:
   void onCentreTouch() override {
     if (_hoverIdx >= 0) {
       _hoverIdx = -1;
-      _committed = false;
       updateHighlight();
     }
   }
@@ -667,10 +659,7 @@ private:
   MenuAction _values[MAX_SEGS] = {MenuAction::NONE, MenuAction::NONE, MenuAction::NONE};
   float _centres[MAX_SEGS] = {0.0f, 0.0f, 0.0f};
   uint8_t _count = 0;
-  float _segDeg = 360.0f;
   int _hoverIdx = -1;
-  uint32_t _hoveredAt = 0;
-  bool _committed = false;
 
   void configure(MenuAction parent) {
     for (uint8_t i = 0; i < MAX_SEGS; ++i) {
@@ -692,7 +681,6 @@ private:
       _count = 1;
       addSeg(0, FA_ICON_POWER, MenuAction::SLEEP_OFF, COLOR_MENU_SLEEP);
     }
-    _segDeg = (_count > 0) ? (360.0f / (float)_count) : 360.0f;
   }
 
   void addSeg(uint8_t idx, const char* iconStr, MenuAction value, lv_color_t color) {
@@ -729,8 +717,9 @@ private:
   int segmentAt(const PolarHit& h) const {
     if (!h.inRing) return -1;
     if (_count == 1) return 0;
+    const float segDeg = 360.0f / (float)_count;
     for (uint8_t i = 0; i < _count; ++i) {
-      if (absAngleDiff(h.deg, _centres[i]) <= _segDeg / 2.0f) return i;
+      if (absAngleDiff(h.deg, _centres[i]) <= segDeg / 2.0f) return i;
     }
     return -1;
   }

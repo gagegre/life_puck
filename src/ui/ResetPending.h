@@ -5,14 +5,14 @@
 //   ResetPendingOverlay  Full-screen dim + progress arc + reset icon.
 //                        Shown while ResetPending is active so the user
 //                        can confirm the reset by holding the screen.
-//   ResetPending         State machine: armed by a shake, advanced by a
-//                        finger-down hold, fires "reset" once the hold
-//                        duration is reached.
+//   ResetPending         Thin wrapper over HoldConfirmation: armed by a
+//                        shake, advanced by a finger-down hold, fires
+//                        "reset" once the hold duration is reached.
 
 #pragma once
 
 #include "Config.h"
-#include "Clock.h"
+#include "HoldConfirmation.h"
 #include <lvgl.h>
 
 class ResetPendingOverlay {
@@ -29,35 +29,38 @@ private:
 };
 
 struct ResetPending {
-  bool active = false;
-  bool fingerDown = false;
-  uint32_t startAt = 0;
-  uint32_t holdStartAt = 0;
-
   static constexpr uint32_t HOLD_MS = RESET_HOLD_MS;
   static constexpr uint32_t TIMEOUT_MS = 4000;
 
-  void begin() {
-    active = true;
-    fingerDown = false;
-    startAt = Clock::now();
-    holdStartAt = 0;
+  HoldConfirmation state;
+
+  // Convenience accessors so call sites don't have to reach through `state`.
+  bool active() const {
+    return state.active;
+  }
+  bool fingerDown() const {
+    return state.fingerDown;
+  }
+
+  void arm() {
+    state.arm();
   }
   void cancel() {
-    active = false;
-    fingerDown = false;
-    holdStartAt = 0;
+    state.cancel();
   }
-
   bool timedOut() const {
-    return active && Clock::elapsed(startAt, TIMEOUT_MS);
+    return state.timedOut(TIMEOUT_MS);
   }
-
+  void beginHold() {
+    state.beginHold(HOLD_MS);
+  }
+  void releaseHold() {
+    state.releaseHold();
+  }
   float holdProgress() const {
-    if (!fingerDown || holdStartAt == 0) return 0.0f;
-    return min(1.0f, (float)(Clock::now() - holdStartAt) / (float)HOLD_MS);
+    return state.holdProgress();
   }
   bool holdComplete() const {
-    return fingerDown && holdProgress() >= 1.0f;
+    return state.holdComplete();
   }
 };

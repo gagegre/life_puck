@@ -20,7 +20,7 @@ class Battery {
 public:
   // Build all LVGL widgets; reads an initial voltage so percent() is
   // valid immediately. Pass the screen-active object (or any sensible
-  // parent) — the arc fills the rim, the overlay covers the screen.
+  // parent), the arc fills the rim, the overlay covers the screen.
   void begin(lv_obj_t* parent);
 
   // Per-loop tick: throttled ADC reads, charging animation, auto-hide.
@@ -81,11 +81,6 @@ public:
   }
   bool batteryPresent() const {
     return _batteryPresent;
-  }
-
-  // Legacy accessor — kept for call sites that look up the arc object.
-  lv_obj_t* container() const {
-    return _arc;
   }
 
 private:

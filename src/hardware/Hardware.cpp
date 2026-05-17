@@ -30,13 +30,19 @@ void lvTickTask(void*) {
   lv_tick_inc(LVGL_TICK_INTERVAL_MS);
 }
 
-int readTouchFingerDownRaw() {
+int readTouchFingerCountRaw() {
   Wire.beginTransmission(CST816S_I2C_ADDR);
   Wire.write(0x02);
   if (Wire.endTransmission(false) != 0) return -1;
   const uint8_t n = Wire.requestFrom((uint8_t)CST816S_I2C_ADDR, (uint8_t)1);
   if (n != 1 || Wire.available() < 1) return -1;
-  return (Wire.read() & 0x0F) > 0 ? 1 : 0;
+  return (int)(Wire.read() & 0x0F);
+}
+
+int readTouchFingerDownRaw() {
+  const int count = readTouchFingerCountRaw();
+  if (count < 0) return -1;
+  return count > 0 ? 1 : 0;
 }
 
 }  // namespace Hardware

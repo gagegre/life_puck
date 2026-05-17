@@ -15,6 +15,13 @@
 //
 //   count-down : value = HP remaining; distance = value
 //   count-up   : value = damage taken; distance = base - value
+//
+// Undo
+//   Each finalized bundle is pushed onto a fixed-size ring of recent
+//   bundle origins (UNDO_HISTORY_DEPTH deep). undo() pops the most
+//   recent and restores the value to its pre-bundle state, so the user
+//   can walk back several miscounted steps. reset() and setValue() both
+//   clear the history -- those are not gameplay actions to "undo".
 
 #pragma once
 
@@ -27,7 +34,7 @@ class FlashManager;
 class LifeCounter {
 public:
   // Vertical offset of the sub-label below the counter (and the delta
-  // badge above it). Same in 1P and 2P — spacing reads identically.
+  // badge above it). Same in 1P and 2P -- spacing reads identically.
   static constexpr int LABEL_DY = 52;
   static constexpr uint32_t BUNDLE_MS = 1500;
 
@@ -50,18 +57,22 @@ public:
   // callback. Out-of-bounds taps trigger the rejected-input bump.
   void change(int delta, bool twoPlayerMode);
 
-  // Undo the entire current bundle in one step. Returns false if nothing.
+  // Undo the most recent bundle, restoring the value to its pre-bundle
+  // state. Returns false if the undo history is empty.
   bool undo();
   bool canUndo() const {
-    return _bundleOrigin >= 0;
+    return _undoCount > 0;
   }
 
-  // Two-step swipe-undo: first swipe arms the counter visually
-  // (dimmed + restore delta); holding the centre confirmation ring
-  // calls undo(). Any other deliberate gesture clears it.
+  // Two-step swipe-undo: first swipe puts the counter into the
+  // "pending" visual state (dimmed + orange undo glyph); a second
+  // confirming swipe calls undo(). Any other action clears.
   bool beginUndoPending();
   void clearUndoPending();
 
+  // Direct value setter. Bypasses bundle/undo bookkeeping -- intended
+  // for wake-from-deep-sleep restore. Clears the undo history because
+  // the new value is not a gameplay action you'd want to walk back.
   void setValue(int v);
 
   void setBaseLife(int base);
@@ -76,15 +87,16 @@ public:
 
   // Reset to the starting value for the current mode.
   //
-  // The animation ALWAYS plays the FULL 0↔MAX sweep, regardless of the
+  // The animation ALWAYS plays the FULL 0..MAX sweep, regardless of the
   // current _value:
-  //   count-down: animate 0 → baseLife    (fill up to ready)
-  //   count-up:   animate baseLife → 0    (clear damage to ready)
+  //   count-down: animate 0 -> baseLife    (fill up to ready)
+  //   count-up:   animate baseLife -> 0    (clear damage to ready)
   //
-  // We never short-circuit when _value already equals the target — that
+  // We never short-circuit when _value already equals the target -- that
   // would make a shake-reset at full HP, or a mode switch with matching
   // values, silently do nothing. The dramatic count is the player's main
   // confirmation that the reset happened, so it must always be visible.
+  // Clears the undo history -- a fresh game is not "undoable".
   void reset(bool countUpMode);
 
   int getValue() const {
@@ -132,8 +144,21 @@ private:
   int _baseLife = STARTING_LIFE;
   bool _countUp = false;
 
-  // ---- bundle / undo / delta state --------------------------------------
-  int _bundleOrigin = -1;
+  // ---- undo history -----------------------------------------------------
+  //
+  // Ring buffer of pre-bundle values. `_undoHead` is the next-write
+  // position; `_undoCount` is the current size (0..UNDO_HISTORY_DEPTH).
+  // When full, the oldest entry is silently dropped.
+  int _undoBefore[UNDO_HISTORY_DEPTH] = {};
+  uint8_t _undoHead = 0;
+  uint8_t _undoCount = 0;
+
+  // ---- bundle / delta state ---------------------------------------------
+  //
+  // While a bundle is open and within BUNDLE_MS of the last tap, repeated
+  // taps accumulate into the same delta badge and share a single undo
+  // snapshot. After BUNDLE_MS without activity the badge fades but the
+  // snapshot stays on the undo stack so the user can still walk it back.
   int _accDelta = 0;
   bool _bundleOpen = false;
   uint32_t _bundleLastAt = 0;
@@ -173,4 +198,10 @@ private:
   lv_color_t zoneColor(int distance) const;
   void updatePulse(uint32_t now);
   void refreshLabel();
+
+  // ---- undo helpers -----------------------------------------------------
+  void pushUndo(int valueBefore);
+  int popUndo();
+  int peekUndo() const;
+  void clearUndoHistory();
 };

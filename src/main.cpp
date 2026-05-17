@@ -84,7 +84,7 @@ static void buildGameUiForBoot(bool wokeFromDeepSleep, bool animateInitialReset 
     else
       gameUi.exitTwoPlayer();
   } else if (animateInitialReset) {
-    gameUi.resetBoth(game.countUp, game.twoPlayer);
+    gameUi.resetBoth(game.countUp);
   } else {
     const int p1Start = resetStartValueForIntro(game.countUp, game.baseLife1);
     const int p2Start = resetStartValueForIntro(game.countUp, game.baseLife2);
@@ -147,7 +147,7 @@ void onStartupIntroFinished(void* userData) {
 
     // Crosshair is gone now. Start the normal reset/count animation here,
     // same path/speed as other UI reset transitions.
-    gameUi.resetBoth(game.countUp, game.twoPlayer);
+    gameUi.resetBoth(game.countUp);
   }
 
   lv_obj_invalidate(lv_screen_active());
@@ -318,7 +318,7 @@ static bool handleStartupIntroLoop() {
 
   // Hold-to-skip: poll the raw finger-down register at a modest cadence.
   // Hardware::readTouchFingerDownRaw() reads CST816S register 0x02 directly
-  // over I2C — the same mechanism the radial menu uses for continuous hold
+  // over I2C, the same mechanism the radial menu uses for continuous hold
   // tracking. It works before Hardware::touch.begin() has been called because
   // Wire is already up from setup().
   //

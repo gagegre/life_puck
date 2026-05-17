@@ -24,7 +24,7 @@ public:
     _prefs.begin("lifepuck", false);
   }
 
-  // Backlight PWM level (0..255 — see Config.h for the percent mapping).
+  // Backlight PWM level (0..255, see Config.h for the percent mapping).
   uint8_t getBrightness() const {
     return _prefs.getUChar("bri", BACKLIGHT_DEFAULT_LEVEL);
   }
@@ -60,7 +60,7 @@ public:
   int getBaseLife2() const {
     return _prefs.getInt("blife2", 30);
   }
-  
+
   void setBaseLife2(int v) {
     _prefs.putInt("blife2", v);
   }

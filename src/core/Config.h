@@ -8,7 +8,7 @@
 // Anything truly runtime-tunable lives elsewhere (NvmSettings); everything
 // here is `constexpr` and known at compile time.
 //
-// This file has no project-level dependencies — every other module
+// This file has no project-level dependencies, every other module
 // includes it but it includes only third-party / system headers.
 
 #pragma once
@@ -72,7 +72,6 @@ static constexpr const char* COUNT_DOWN = "HP";
 static constexpr const char* COUNT_UP = "DAMAGE";
 static constexpr const char* UNDO = "UNDO";
 static constexpr const char* RESET = "RESET";
-static constexpr const char* HOLD = "HOLD";
 static constexpr const char* SLEEP = "SLEEP";
 static constexpr const char* SHOW_PERCENT = "SHOW %";
 static constexpr const char* STATE_ENABLED = "ENABLED";
@@ -127,7 +126,18 @@ constexpr int LIFE_MIN = 0;
 constexpr int LIFE_MAX = 99;
 
 // ==============================================================
-// Life-counter thresholds and animations
+// Undo history
+//
+// Per-counter ring buffer of recent bundle origins, so the user can walk
+// back several miscounted steps. Capacity is per LifeCounter; with two
+// counters this costs UNDO_HISTORY_DEPTH * 2 * sizeof(int) bytes total.
+// 8 entries is well within budget and matches the typical "undo a few
+// misclicks" use case without becoming a navigable game log.
+// ==============================================================
+
+constexpr uint8_t UNDO_HISTORY_DEPTH = 8;
+
+// ==============================================================
 //
 // All colour/pulse decisions are driven by "distance to defeat":
 //   count-down: distance = value         (defeated at 0)
@@ -144,30 +154,23 @@ constexpr int LIFE_ZONE_RED_MAX = 5;
 
 // Low-HP pulse: ambient opacity throb while in the red zone.
 constexpr uint32_t LIFE_PULSE_PERIOD_MS = 1500;
-constexpr uint8_t LIFE_PULSE_OPA_MIN = 140;  // ~55% — quite visible drop
+constexpr uint8_t LIFE_PULSE_OPA_MIN = 140;  // ~55%, quite visible drop
 
 // Max/min bump: brief multi-cue animation when a tap is rejected by the
 // bounds. Three layered effects fire together so the rejection is
 // unmistakable:
 //   - horizontal "head shake" wobble (two left-right swings)
-//   - brief deep-grey colour flash (NOT red — that would read as damage)
+//   - brief deep-grey colour flash (NOT red, that would read as damage)
 //   - subtle opacity dip
 constexpr uint32_t LIFE_BUMP_MS = 360;
-constexpr int LIFE_BUMP_SHAKE_AMP = 12;  // px — strong, unambiguous wobble
+constexpr int LIFE_BUMP_SHAKE_AMP = 12;  // px, strong, unambiguous wobble
 
-// Reset celebration: animate from 0 to target value (or target to 0
-// for count-up) over this duration when resetBoth() fires.
-constexpr uint32_t LIFE_RESET_ANIM_MS = 900;
+// Reset celebration: animate the value toward its target in single-unit
+// steps spaced LIFE_RESET_STEP_MS apart. Completion is detected when the
+// value reaches the target, NOT after a fixed wall-clock duration -- a
+// shake-reset at full HP or a mode switch with matching values must still
+// play the full sweep, so the user gets visible confirmation either way.
 constexpr uint32_t LIFE_RESET_STEP_MS = 26;
-
-// ==============================================================
-// Defeat overlay
-// ==============================================================
-
-constexpr uint32_t DEFEAT_FREEZE_MS = 280;
-constexpr uint32_t DEFEAT_PULSE_MS = 380;
-constexpr uint8_t DEFEAT_PULSE_COUNT = 3;
-constexpr uint32_t DEFEAT_MAIN_MS = DEFEAT_FREEZE_MS + DEFEAT_PULSE_MS * DEFEAT_PULSE_COUNT;
 
 // ==============================================================
 // General timing
@@ -185,6 +188,18 @@ constexpr uint32_t LOOP_DELAY_MS = 5;
 // from electrical jitter or library quirks.
 constexpr uint32_t TOUCH_COOLDOWN_MS = 40;
 constexpr uint32_t HOLD_RELEASE_GESTURE_BLOCK_MS = 180;
+
+// ---- Two-finger tap detection ----
+//
+// The CST816S reports finger count in the low nibble of register 0x02.
+// We poll that register continuously while a contact is in progress and
+// recognise a "two-finger tap" as: at some point during the contact the
+// raw count rose to >=2, the contact was longer than TWO_FINGER_HOLD_MIN_MS
+// (so a momentary glitch doesn't fire), shorter than TWO_FINGER_HOLD_MAX_MS
+// (so a deliberate two-finger hold doesn't fire), and no swipe/single-tap
+// gesture event was emitted during the contact.
+constexpr uint32_t TWO_FINGER_HOLD_MIN_MS = 60;
+constexpr uint32_t TWO_FINGER_HOLD_MAX_MS = 600;
 
 constexpr uint32_t CENTER_HOLD_MS = 450;         // soft timer before menu opens
 constexpr uint32_t RESET_HOLD_MS = 800;          // hold time to confirm a reset
@@ -401,7 +416,7 @@ enum class SleepReason : uint8_t {
   IdleTimeout = 2,  // backlight idle chain reached DEEP_SLEEP_MS
 };
 
-// RTC-persistent state — survives deep sleep, cleared on power-off.
+// RTC-persistent state: survives deep sleep, cleared on power-off.
 // Defined here so PowerManager and the .ino setup() can both see the layout.
 struct PersistentState {
   int life = STARTING_LIFE;

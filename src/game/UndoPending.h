@@ -10,9 +10,8 @@
 
 #pragma once
 
-#include "Clock.h"
-#include "Animation.h"
 #include "Config.h"
+#include "HoldConfirmation.h"
 #include <lvgl.h>
 
 class UndoPendingOverlay {
@@ -26,58 +25,43 @@ private:
   lv_obj_t* _dim = nullptr;
   lv_obj_t* _arc = nullptr;
   lv_obj_t* _icon = nullptr;
-  lv_obj_t* _hint = nullptr;
 };
 
 struct UndoPending {
-  bool active = false;
-  bool fingerDown = false;
-  int player = 0;  // 0 = P1, 1 = P2
-  uint32_t startAt = 0;
-  uint32_t holdStartAt = 0;
-  TimedAnimation holdAnim;
-
   static constexpr uint32_t HOLD_MS = RESET_HOLD_MS;
   static constexpr uint32_t TIMEOUT_MS = 4000;
 
-  void begin(int p) {
-    active = true;
-    fingerDown = false;
+  HoldConfirmation state;
+  int player = 0;  // 0 = P1, 1 = P2
+
+  bool active() const {
+    return state.active;
+  }
+  bool fingerDown() const {
+    return state.fingerDown;
+  }
+
+  // Arm undo for the given player.
+  void arm(int p) {
     player = p;
-    startAt = Clock::now();
-    holdStartAt = 0;
-    holdAnim.stop();
+    state.arm();
   }
-
   void cancel() {
-    active = false;
-    fingerDown = false;
-    holdStartAt = 0;
-    holdAnim.stop();
+    state.cancel();
   }
-
   bool timedOut() const {
-    return active && Clock::elapsed(startAt, TIMEOUT_MS);
+    return state.timedOut(TIMEOUT_MS);
   }
-
   void beginHold() {
-    fingerDown = true;
-    holdStartAt = Clock::now();
-    holdAnim.start(HOLD_MS);
+    state.beginHold(HOLD_MS);
   }
-
-  void clearHold() {
-    fingerDown = false;
-    holdStartAt = 0;
-    holdAnim.stop();
+  void releaseHold() {
+    state.releaseHold();
   }
-
   float holdProgress() const {
-    if (!fingerDown) return 0.0f;
-    return holdAnim.progress();
+    return state.holdProgress();
   }
-
   bool holdComplete() const {
-    return fingerDown && holdAnim.complete();
+    return state.holdComplete();
   }
 };

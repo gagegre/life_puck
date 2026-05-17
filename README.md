@@ -70,7 +70,7 @@ values are for the Waveshare ESP32-S3-Touch-LCD-1.28-B:
 -D TFT_BL=2
 ```
 
-If you wire to a different board, edit `platformio.ini` — do not edit
+If you wire to a different board, edit `platformio.ini`, do not edit
 any file inside `.pio/libdeps/`.
 
 ### Custom Fonts
@@ -98,8 +98,10 @@ into `src/`; PlatformIO will pick them up automatically.
 | Tap bottom half | -1 life |
 | Swipe up | +5 life |
 | Swipe down | -5 life |
+| Swipe left | Arm undo (see [Undo](#undo) below) |
 | Shake the puck | Reset to starting life (after a confirm dwell) |
 | Hold centre | Open radial menu |
+| Two-finger tap | Toggle 1P / 2P mode |
 
 ### Game (2P mode)
 
@@ -110,12 +112,49 @@ Right half = Player 2 (rotated 180 degrees so the opponent can read it).
 |---|---|
 | Tap/swipe left half | P1 |
 | Tap/swipe right half | P2 (directions are mirrored) |
+| Swipe inward (left on P1, right on P2) | Arm undo for that player |
 | Shake | Reset both players (with confirm dwell) |
 | Hold centre | Open radial menu |
+| Two-finger tap | Toggle 1P / 2P mode |
 
 A shake triggers a brief on-screen confirmation overlay; holding for
 `RESET_HOLD_MS` (~0.8 s) commits the reset, lifting earlier cancels it.
 This is what stops a hard accidental knock from wiping the table.
+
+### Undo
+
+The undo flow is the same arm + hold-confirm grammar as reset, so accidents
+need two deliberate gestures to take effect.
+
+1. **Arm**: swipe horizontally on the player's half (left in 1P or on
+   P1's side in 2P; right on P2's side, because P2's view is rotated).
+   The affected counter dims and shows the delta that an undo would
+   restore (e.g. `+3` if your last bundle subtracted 3). A faint orange
+   confirmation ring appears around the rim.
+2. **Confirm**: hold the centre of the screen. The ring fills over
+   `RESET_HOLD_MS`. Lifting before it fills empties the ring but leaves
+   the undo armed; you have `4 s` (`UndoPending::TIMEOUT_MS`) to try
+   again before the armed state silently cancels.
+
+The undo history is up to `UNDO_HISTORY_DEPTH` (default **8**) bundles
+deep per counter, so several miscounts in a row can be walked back,
+arm and confirm again for each step. When the buffer is full the oldest
+bundle is silently dropped.
+
+What counts as a "bundle": every life change within `BUNDLE_MS` (~1.5 s)
+of the previous one is collapsed into a single undo step. So three rapid
+`-1` taps undo together as one `+3`, but a `-1`, a pause, and then a `-2`
+are two separate undos. A reset (shake-confirm) and a fresh deep-sleep
+restore both clear the undo history, they are not gameplay actions
+you'd want to walk back.
+
+### Two-finger tap
+
+Resting two fingers anywhere on the screen briefly (~60–600 ms) and
+lifting both fires the same action as the radial menu's PLAYER_TOGGLE:
+toggle 1P / 2P mode, with the usual confirmation toast and reset
+animation. It is ignored while the radial menu is open, during a
+defeat overlay, or while a reset / undo confirmation is armed.
 
 ### Defeat overlay
 
@@ -268,19 +307,21 @@ life_puck/
    ├─ lv_conf.h             LVGL configuration
    ├─ Config.h              constants, enums, types, FontAwesome glyphs, UiText
    ├─ Clock.h               Clock::now/elapsed/tick helpers
-   ├─ Hardware.{h,cpp}      TFT, CST816S, LVGL display, draw buffer, flush cb
+   ├─ Animation.h           TimedAnimation helper used by HoldConfirmation and the radial dwell ring
+   ├─ HoldConfirmation.h    Shared arm + hold-to-confirm state used by ResetPending and UndoPending
+   ├─ Hardware.{h,cpp}      TFT, CST816S, LVGL display, draw buffer, flush cb, raw I2C finger-count read
    ├─ Imu.{h,cpp}           QMI8658C driver + shake detection
    ├─ NvmSettings.h         Preferences/NVS-backed user prefs (header-only)
    ├─ Backlight.{h,cpp}     PWM level, dim/preOff/off chain, idle-sleep callback
    ├─ Battery.{h,cpp}       ADC read, %, LVGL widget, display modes
    ├─ FlashManager.{h,cpp}  Six feedback flash arcs
-   ├─ LifeCounter.{h,cpp}   One player's life value, label, defeat callback
+   ├─ LifeCounter.{h,cpp}   One player's life value, label, defeat callback, undo history ring
    ├─ GameUi.{h,cpp}        Layout of both LifeCounters, divider, restore
    ├─ ModeToast.{h,cpp}     Brief centre toast on menu commits
    ├─ DefeatOverlay.{h,cpp} BASE LOST overlay + dismissal
-   ├─ ResetPending.{h,cpp}  Hold-to-confirm reset overlay
-   ├─ UndoPending.h         Undo-pending state struct
-   ├─ TouchRouter.{h,cpp}   Touch swallow / first-touch-after-wake handling
+   ├─ ResetPending.{h,cpp}  Hold-to-confirm reset overlay (composes HoldConfirmation)
+   ├─ UndoPending.{h,cpp}   Hold-to-confirm undo overlay (composes HoldConfirmation)
+   ├─ TouchRouter.{h,cpp}   Touch swallow / first-touch-after-wake handling + two-finger tap detector
    ├─ RadialMenu.{h,cpp}    Settings UI: top ring + 4 sub-views
    ├─ StartupIntro.{h,cpp}  Cinematic boot intro
    ├─ PowerManager.{h,cpp}  Deep-sleep entry, RTC-state save
@@ -290,7 +331,7 @@ life_puck/
 ### Dependency direction
 
 App is the only module that knows about everything. Hardware sits at the
-bottom — every feature module is unaware of pins or specific chips.
+bottom, every feature module is unaware of pins or specific chips.
 `Backlight::checkTimeout()` deliberately fires deep sleep via an injected
 callback instead of including PowerManager, so the dependency graph stays
 acyclic and Backlight stays trivially testable.
@@ -347,22 +388,29 @@ consistent.
 | `Battery` | ADC read, linear 0..100 percentage, LVGL widget that shows according to `BatteryMode`. |
 | `Backlight` | PWM level, dim/pre-off/off state, idle timeout chain. Fires deep sleep via an injected callback. |
 | `FlashManager` | Six feedback arc sprites that flash briefly on life change. |
-| `LifeCounter` | One player's life value and LVGL label. Calls `FlashManager` on change. Fires a defeat callback when the player hits the lose condition. |
+| `LifeCounter` | One player's life value and LVGL label. Calls `FlashManager` on change. Fires a defeat callback when the player hits the lose condition. Keeps a per-counter ring of up to `UNDO_HISTORY_DEPTH` recent bundle origins, so several miscounted bundles can be walked back in turn. |
 | `GameUi` | Builds the always-visible game layer (two `LifeCounter` instances plus the 2P divider) and handles 1P↔2P layout transitions. |
 | `ModeToast` | Brief centre toast that confirms a menu commit (e.g. "1P", "Count up"). |
 | `DefeatOverlay` | Full-screen BASE LOST overlay shown when a `LifeCounter` defeat callback fires. |
-| `ResetPendingOverlay` / `ResetPending` | Hold-to-confirm overlay used by shake-to-reset. |
-| `TouchRouter` | One-shot "swallow next touch" flag used both for wake-from-sleep and for the menu's tap-to-back. |
+| `HoldConfirmation` | Shared arm + hold-to-confirm state machine. Owns the `active / fingerDown / timeout / progress / complete` contract that both `ResetPending` and `UndoPending` use, so the two flows have one source of truth for the hold grammar. |
+| `ResetPendingOverlay` / `ResetPending` | Hold-to-confirm overlay used by shake-to-reset. The state struct composes `HoldConfirmation`. |
+| `UndoPendingOverlay` / `UndoPending` | Hold-to-confirm overlay used by swipe-to-undo. The state struct composes `HoldConfirmation` and carries the affected player index. |
+| `TouchRouter` | One-shot "swallow next touch" flag used both for wake-from-sleep and for the menu's tap-to-back. Also owns the two-finger tap detector: polls the CST816S finger-count register each tick and classifies a brief two-finger contact as a tap. |
 | `RadialMenu` | Single-screen settings UI. Six-segment top-level ring (`TopRingView`), two-stage dwell commit, plus sub-views `BatterySubView`, `BrightnessView`, `BaseSelectorView`, and a generic `ChoiceView` for the sleep confirm. Centre dead-zone tap = back/close. Owns its own touch routing via `handleTouch` / `notifyFingerLifted` / `tick`. |
 
 ### App namespace
 
 `App.cpp` owns the singletons (`imu`, `nvm`, `backlight`, `battery`,
 `flashMgr`, `gameUi`, `modeToast`, `radialMenu`, `resetPendingOverlay`,
-`resetPending`, `defeatOverlay`, `undoPending`, `touchRouter`, `game`)
-plus the per-tick handlers `handleTouch`, `handleResetPending`,
-`handleShake`, and `drainPendingMenuAction`. `main.cpp` does nothing
-beyond `setup()` (bring-up) and `loop()` (call those handlers).
+`resetPending`, `defeatOverlay`, `undoPending`, `undoPendingOverlay`,
+`touchRouter`, `game`) plus the per-tick handlers `handleTouch`,
+`handleResetPending`, `handleUndoPending`, `handleShake`, and
+`drainPendingMenuAction`. `main.cpp` does nothing beyond `setup()`
+(bring-up) and `loop()` (call those handlers).
+
+`handleTouch` also drives the two-finger tap detector via
+`TouchRouter::pollTwoFinger()` each tick, dispatching to
+`executeMenuAction(MenuAction::PLAYER_TOGGLE)` when a tap is taken.
 
 ### PowerManager namespace
 
@@ -413,7 +461,10 @@ All user-tuneable values are `constexpr` in `Config.h`.
 |---|---|---|
 | `STARTING_LIFE` | 30 | Starting life total (overridable via Base-life selector) |
 | `CENTER_HOLD_MS` | 450 ms | How long to hold the centre before the menu opens |
-| `RESET_HOLD_MS` | 800 ms | Hold time to confirm a shake-triggered reset |
+| `RESET_HOLD_MS` | 800 ms | Hold time to confirm a shake-triggered reset (also reused as the hold time for undo confirmation) |
+| `UNDO_HISTORY_DEPTH` | 8 | Per-counter ring buffer size for undoable bundles. Increase if you want a deeper "walk back" history; cost is 4 bytes per slot per counter. |
+| `TWO_FINGER_HOLD_MIN_MS` | 60 ms | Minimum two-finger contact duration before a release counts as a two-finger tap. Raise this if you see false positives during single-finger swipes. |
+| `TWO_FINGER_HOLD_MAX_MS` | 600 ms | Maximum two-finger contact duration. Beyond this, a release is treated as a deliberate hold, not a tap. |
 | `SHAKE_THRESHOLD` | 1.6 g | Per-axis delta-g that counts as one swing direction |
 | `SHAKE_REVERSALS_REQUIRED` | 4 | Number of direction reversals needed within the window. A single pickup creates at most one reversal, so it cannot trigger a reset. |
 | `SHAKE_WINDOW_MS` | 1200 ms | Reversals must accumulate within this window |

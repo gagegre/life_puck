@@ -62,7 +62,11 @@ public:
   // delta badges too, not just the large number label.
   void setCountersVisible(bool visible, bool twoPlayerMode);
 
-  void resetBoth(bool countUpMode, bool twoPlayerMode);
+  // Reset both counters to the starting value for the current mode.
+  // The mode flag is passed through to each LifeCounter; the second
+  // counter is always reset too so the base label stays in sync even
+  // when 1P is active.
+  void resetBoth(bool countUpMode);
 
   // Used after wake-from-deep-sleep to restore exact values.
   void restoreValues(int p1Life, int p2Life);
@@ -89,12 +93,6 @@ public:
   void updateDeltas(uint32_t now) {
     _p1.updateDelta(now);
     _p2.updateDelta(now);
-  }
-
-  // Undo the last change for the given player (0 = P1, 1 = P2).
-  bool undoPlayer(int player) {
-    if (player == 1) return _p2.undo();
-    return _p1.undo();
   }
 
 private:

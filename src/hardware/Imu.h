@@ -5,7 +5,7 @@
 //
 // Shake detection counts direction reversals on the dominant horizontal
 // axis within a short window, so a single pickup or jolt never triggers
-// a reset — SHAKE_REVERSALS_REQUIRED (default 4) crosses are needed
+// a reset, SHAKE_REVERSALS_REQUIRED (default 4) crosses are needed
 // inside SHAKE_WINDOW_MS, with SHAKE_COOLDOWN_MS between successive
 // resets.
 
@@ -17,7 +17,7 @@ class IMU {
 public:
   // Probes the I2C bus for a QMI8658C, configures the accelerometer
   // (±8 g, 500 Hz), and seeds the previous-sample state. Returns false
-  // if the chip isn't found or doesn't ack — the rest of the firmware
+  // if the chip isn't found or doesn't ack, the rest of the firmware
   // continues running without shake detection in that case.
   bool begin();
 
@@ -33,7 +33,8 @@ public:
 
 private:
   bool _ok = false;
-  float _prevAx = 0.0f, _prevAy = 0.0f, _prevAz = -1.0f;
+  float _prevAx = 0.0f;
+  float _prevAy = 0.0f;
   uint32_t _lastShakeAt = 0;
   int8_t _lastDirection = 0;
   uint8_t _reversalCount = 0;

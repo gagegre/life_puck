@@ -14,6 +14,11 @@
 //     finger is confirmed lifted.
 //   - Centre-hold tracking is the second piece of state, used by
 //     the hold-to-open-menu soft timer.
+//   - Two-finger detection is the third: while any contact is in
+//     progress, callers pollTwoFinger() with the raw finger count;
+//     if the count rose to >=2 at some point during a contact and
+//     no swipe/tap gesture fired, takeTwoFingerTap() returns true on
+//     release.
 //   - swallowFirstTouch is a one-shot used right after deep-sleep
 //     wake to drop the touch that woke us.
 
@@ -107,9 +112,6 @@ public:
     _hold.menuOpened = true;
   }
 
-  uint32_t lastActionAt() const {
-    return _lastActionAt;
-  }
   void recordAction() {
     _lastActionAt = Clock::now();
   }
@@ -129,6 +131,43 @@ public:
     _lastActionAt = now;
   }
 
+  // ---- Two-finger tap detection ----
+  //
+  // The two-finger state machine is driven by polling the raw CST816S
+  // finger count each loop iteration. Call pollTwoFinger() with the
+  // current raw count (-1 if the I2C read failed -- treated as "no info,
+  // hold state").
+  //
+  // Any single-finger gesture event arriving during the contact aborts
+  // detection (cancelTwoFinger()). Detection is also cancelled implicitly
+  // while the swallow flag is set, while a menu is open, or whenever the
+  // caller wants -- e.g. defeat overlay active.
+  //
+  // takeTwoFingerTap() returns and consumes a completed tap once.
+
+  // Reset the detector. Use when entering a state in which two-finger
+  // tap should not fire (radial menu open, defeat overlay, etc.).
+  void cancelTwoFinger() {
+    _twoFingerSeen = false;
+    _twoFingerContact = false;
+    _twoFingerArmedAt = 0;
+  }
+
+  // Drive the detector. rawCount is the raw value from
+  // Hardware::readTouchFingerCountRaw(): 0/1/2/... or -1 on I2C error.
+  // Call this once per loop tick.
+  void pollTwoFinger(int rawCount);
+
+  // Returns true exactly once when a qualifying two-finger tap has just
+  // completed -- a contact during which the raw count rose to >=2 and
+  // then dropped to 0 within [TWO_FINGER_HOLD_MIN_MS, TWO_FINGER_HOLD_MAX_MS]
+  // without any swipe/tap gesture being seen.
+  bool takeTwoFingerTap() {
+    if (!_twoFingerPending) return false;
+    _twoFingerPending = false;
+    return true;
+  }
+
 private:
   HoldState _hold;
   bool _swallowing = false;
@@ -136,4 +175,14 @@ private:
   bool _swallowNextGesture = false;
   uint32_t _gestureBlockUntil = 0;
   uint32_t _lastActionAt = 0;
+
+  // ---- two-finger detection state ----
+  // _twoFingerContact: a contact is currently in progress (raw count >= 1).
+  // _twoFingerSeen:    during this contact the raw count rose to >= 2.
+  // _twoFingerArmedAt: timestamp at which count first rose to >= 2.
+  // _twoFingerPending: a completed two-finger tap is waiting to be taken.
+  bool _twoFingerContact = false;
+  bool _twoFingerSeen = false;
+  uint32_t _twoFingerArmedAt = 0;
+  bool _twoFingerPending = false;
 };

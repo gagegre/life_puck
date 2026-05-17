@@ -1,4 +1,4 @@
-// LifeCounter.cpp — see LifeCounter.h for behaviour overview.
+// LifeCounter.cpp -- see LifeCounter.h for behaviour overview.
 
 #include "LifeCounter.h"
 #include "FlashManager.h"
@@ -60,11 +60,12 @@ void LifeCounter::change(int delta, bool twoPlayerMode) {
     return;
   }
 
-  // Bundle logic: if a bundle is open and the last change was recent,
-  // keep accumulating within the same undo/delta window.
+  // Bundle logic: a new bundle pushes one undo snapshot. Subsequent
+  // changes within BUNDLE_MS continue the same bundle and share the
+  // snapshot already on the stack.
   const bool inWindow = _bundleOpen && ((now - _bundleLastAt) < BUNDLE_MS);
   if (!inWindow) {
-    _bundleOrigin = prev;
+    pushUndo(prev);
     _accDelta = 0;
     _bundleOpen = true;
   }
@@ -90,12 +91,11 @@ void LifeCounter::change(int delta, bool twoPlayerMode) {
 }
 
 bool LifeCounter::undo() {
-  if (_bundleOrigin < 0) return false;
-  _value = _bundleOrigin;
-  _bundleOrigin = -1;
+  if (_undoCount == 0) return false;
+  _value = popUndo();
   _bundleOpen = false;
-  _undoPending = false;
   _accDelta = 0;
+  _undoPending = false;
   refreshLabel();
   hideDelta();
   return true;
@@ -104,8 +104,8 @@ bool LifeCounter::undo() {
 bool LifeCounter::beginUndoPending() {
   if (!canUndo()) return false;
   _undoPending = true;
-  if (_deltaLbl && _bundleOrigin >= 0) {
-    const int restore = _bundleOrigin - _value;
+  if (_deltaLbl) {
+    const int restore = peekUndo() - _value;
     char buf[8];
     if (restore >= 0)
       snprintf(buf, sizeof(buf), "+%d", restore);
@@ -129,9 +129,9 @@ void LifeCounter::clearUndoPending() {
 
 void LifeCounter::setValue(int v) {
   _value = constrain(v, LIFE_MIN, _baseLife);
-  _bundleOrigin = -1;
   _bundleOpen = false;
   _accDelta = 0;
+  clearUndoHistory();
   refreshLabel();
 }
 
@@ -148,10 +148,10 @@ void LifeCounter::setCountUp(bool up) {
 
 void LifeCounter::reset(bool countUpMode) {
   _countUp = countUpMode;
-  _bundleOrigin = -1;
   _bundleOpen = false;
   _accDelta = 0;
   _undoPending = false;
+  clearUndoHistory();
   hideDelta();
 
   _resetFrom = countUpMode ? _baseLife : LIFE_MIN;
@@ -216,6 +216,9 @@ void LifeCounter::setVisible(bool visible) {
 
 void LifeCounter::updateDelta(uint32_t now) {
   // ---- 1. delta bundle ----
+  //
+  // Close the open bundle after BUNDLE_MS of inactivity. The bundle's
+  // undo snapshot stays on the stack -- only the visible badge fades.
   if (_bundleOpen && !_undoPending && (now - _bundleLastAt) >= BUNDLE_MS) {
     _bundleOpen = false;
     hideDelta();
@@ -226,7 +229,7 @@ void LifeCounter::updateDelta(uint32_t now) {
   // unmistakable: horizontal head-shake (two left-right swings),
   // brief grey colour flash, and a subtle opacity dip.
   //
-  // We do NOT use transform_scale here — scaling the large custom
+  // We do NOT use transform_scale here -- scaling the large custom
   // life font on ESP32-S3 + LVGL partial rendering has been observed
   // to lock up under rapid taps. lv_obj_set_style_translate_x is safe
   // because it doesn't re-rasterize the glyph.
@@ -240,18 +243,18 @@ void LifeCounter::updateDelta(uint32_t now) {
       refreshLabel();
     } else {
       // Horizontal head-shake: damped sine, ~2 full oscillations.
-      // sin(2π · 2 · t/dur) with linear decay to zero amplitude.
+      // sin(2pi * 2 * t/dur) with linear decay to zero amplitude.
       const float t = (float)elapsed / (float)LIFE_BUMP_MS;
       const float decay = 1.0f - t;
       const float angle = t * 2.0f * 2.0f * PI;  // 2 oscillations
       const int dx = (int)lroundf(sinf(angle) * LIFE_BUMP_SHAKE_AMP * decay);
 
-      // LVGL can leave a grey redraw artifact with a 180° rotated label
+      // LVGL can leave a grey redraw artifact with a 180 degree rotated label
       // when translate_x is animated. P2 is already flipped, so keep the
       // rejected-input feedback as opacity/grey only.
       lv_obj_set_style_translate_x(_label, _flipped ? 0 : dx, 0);
 
-      // Subtle opacity dip — peaks at mid-duration.
+      // Subtle opacity dip -- peaks at mid-duration.
       const uint32_t half = LIFE_BUMP_MS / 2;
       const uint32_t safeHalf = half ? half : 1;
       const uint32_t dt = elapsed < half ? elapsed : (LIFE_BUMP_MS - elapsed);
@@ -393,7 +396,7 @@ void LifeCounter::startBump() {
 }
 
 // Map distance-to-defeat onto a colour zone. Single source of truth
-// for thresholds — used by both main counter and sub-label.
+// for thresholds -- used by both main counter and sub-label.
 lv_color_t LifeCounter::zoneColor(int distance) const {
   if (distance == 0) return COLOR_MINUS;
   if (distance <= LIFE_ZONE_RED_MAX) return COLOR_MINUS;
@@ -478,4 +481,33 @@ void LifeCounter::refreshLabel() {
   // (inner edge sits near the divider), so re-align whenever the
   // text changes. No-op in 1P beyond a redundant align call.
   repositionSubLabels(_lastOx);
+}
+
+// ---- undo history ---------------------------------------------------------
+
+void LifeCounter::pushUndo(int valueBefore) {
+  _undoBefore[_undoHead] = valueBefore;
+  _undoHead = (_undoHead + 1) % UNDO_HISTORY_DEPTH;
+  if (_undoCount < UNDO_HISTORY_DEPTH) _undoCount++;
+  // When full, the oldest entry is overwritten silently. The user keeps
+  // their most recent UNDO_HISTORY_DEPTH bundles -- older taps drop off
+  // the bottom of the stack rather than blocking the new push.
+}
+
+int LifeCounter::popUndo() {
+  // Caller must check canUndo() first.
+  _undoHead = (_undoHead + UNDO_HISTORY_DEPTH - 1) % UNDO_HISTORY_DEPTH;
+  _undoCount--;
+  return _undoBefore[_undoHead];
+}
+
+int LifeCounter::peekUndo() const {
+  // Caller must check canUndo() first.
+  const uint8_t idx = (_undoHead + UNDO_HISTORY_DEPTH - 1) % UNDO_HISTORY_DEPTH;
+  return _undoBefore[idx];
+}
+
+void LifeCounter::clearUndoHistory() {
+  _undoHead = 0;
+  _undoCount = 0;
 }

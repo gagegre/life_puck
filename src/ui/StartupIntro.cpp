@@ -8,7 +8,7 @@
 //
 //   * file-local constants and tiny math helpers
 //   * lifecycle: start / skip / construct / destruct / create / finish
-//   * `tick()` — phase dispatcher
+//   * `tick()` phase dispatcher
 //   * the five phase methods, in display order:
 //       - drawStarfield
 //       - drawFighterPass
@@ -20,7 +20,7 @@
 // All phases follow the same contract: they look at the elapsed time `t`,
 // no-op if `t` is outside their window, and otherwise un-hide and position
 // only the objects they need. `tick()` always calls `hideAllObjects()` first,
-// so phases never need to "clean up" — they just paint.
+// so phases never need to "clean up", they just paint.
 // =============================================================================
 
 #include "StartupIntro.h"
@@ -303,7 +303,7 @@ void StartupIntro::create() {
   // once now so the first paint is correct rather than blank-for-16-ms.
   // ---- Hold-to-skip arc --------------------------------------------------
   // Created last so it sits on top of every animation object. Not part of
-  // the animation pool — hideAllObjects() never touches it; drawSkipArc()
+  // the animation pool hideAllObjects() never touches it; drawSkipArc()
   // controls its visibility independently each tick.
   //
   // Indicator:  3 px crisp white ring, fills clockwise from 12 o'clock.
@@ -358,7 +358,7 @@ void StartupIntro::finish() {
 }
 
 // =============================================================================
-// Tick — phase dispatcher
+// Tick -- phase dispatcher
 // =============================================================================
 
 void StartupIntro::tick() {
@@ -402,13 +402,13 @@ void StartupIntro::tick() {
   }
 
   // Hold-to-skip: drawn on top of every phase, independent of t.
-  // Must be the very last call — if TSkipHold ms have elapsed it will
+  // Must be the very last call, if TSkipHold ms have elapsed it will
   // call finish() → delete this, so nothing may run after it.
   drawSkipArc();
 }
 
 // =============================================================================
-// Phase 1 — Starfield (0 .. TLineEnd)
+// Phase 1: Starfield (0 .. TLineEnd)
 //
 // Sixteen pinprick stars fade in on their own staggered delays during the
 // first ~0.7 s, then twinkle gently with a quantised offset so they don't
@@ -438,7 +438,7 @@ void StartupIntro::drawStarfield(uint32_t t) {
 }
 
 // =============================================================================
-// Phase 2 — Fighter pass + engine cone (TStarEnd .. TSweepEnd)
+// Phase 2: Fighter pass + engine cone (TStarEnd .. TSweepEnd)
 //
 // The X-Wing rises into view from below the screen, climbs slowly until it
 // reaches ~mid-height (the future home of the horizontal "swoosh" line),
@@ -581,7 +581,7 @@ void StartupIntro::drawFighterPass(uint32_t t) {
 }
 
 // =============================================================================
-// Phase 3 — Horizontal swoosh + cone dissolve (TSweepEnd .. TLineEnd)
+// Phase 3: Horizontal swoosh + cone dissolve (TSweepEnd .. TLineEnd)
 //
 // A bright horizontal line bursts outward from the cone base, expanding
 // from ~120 px wide to full screen width and then fading. The cone bands
@@ -629,7 +629,7 @@ void StartupIntro::drawHorizontalSwoosh(uint32_t t) {
       const uint8_t i = 8 - layer;
       const int16_t remHalf = coneHalfWidthsBaseFirst[layer];
       const int16_t baseY = CenterY - layer * coneSpacing;
-      // Each upper band drifts a little farther — the higher layers fall faster.
+      // Each upper band drifts a little farther, the higher layers fall faster.
       const int16_t driftY = baseY + lerpI16(0, 28 + layer * 4, dissolveLocal, dissolveDur);
       const uint8_t remOpa = lerpU8(coneStartOpaBaseFirst[layer], 0, dissolveLocal, dissolveDur);
       if (remOpa == 0 || driftY > ScreenH) continue;
@@ -643,12 +643,12 @@ void StartupIntro::drawHorizontalSwoosh(uint32_t t) {
 }
 
 // =============================================================================
-// Phase 4 — Icon parade (TIconStart .. TFinalHoldEnd)
+// Phase 4: Icon parade (TIconStart .. TFinalHoldEnd)
 //
 // Four character glyphs cycle through the centre, each wiped in by a coloured
 // vertical scan line moving across the screen:
 //
-//   * Boba   (green, left-to-right)   — no previous icon to fade out
+//   * Boba   (green, left-to-right)   no previous icon to fade out
 //   * Lea    (white, right-to-left)
 //   * Vader  (red,   left-to-right)
 //   * R2-D2  (blue,  right-to-left, with a final brightening "lock" glow)
@@ -766,7 +766,7 @@ void StartupIntro::drawIconParade(uint32_t t) {
 }
 
 // =============================================================================
-// Phase 5 — Lock-on brackets + reveal (TFinalHoldEnd .. TTotal)
+// Phase 5: Lock-on brackets + reveal (TFinalHoldEnd .. TTotal)
 //
 // Final beat. R2 fades to black; the overlay holds black for a few frames;
 // then the black overlay starts fading away, a soft centre glow + crisp
@@ -923,7 +923,7 @@ void StartupIntro::notifyHoldStart() {
 }
 
 void StartupIntro::notifyHoldEnd() {
-  // Finger lifted — reset. The arc gets hidden on the next drawSkipArc() tick.
+  // Finger lifted, reset. The arc gets hidden on the next drawSkipArc() tick.
   _holdStartAt = 0;
 }
 
@@ -931,7 +931,7 @@ void StartupIntro::drawSkipArc() {
   if (!_skipArc) return;
 
   if (_holdStartAt == 0) {
-    // No hold in progress — keep the arc invisible and reset its angle so
+    // No hold in progress, keep the arc invisible and reset its angle so
     // the next hold starts from a clean state.
     setHidden(_skipArc, true);
     lv_arc_set_angles(_skipArc, 0, 0);

@@ -19,7 +19,7 @@ namespace PowerManager {
 void deepSleepManual();
 
 // Backlight idle chain reached DEEP_SLEEP_MS with no activity.
-// On the next wake the startup intro WILL NOT play — the device returns
+// On the next wake the startup intro WILL NOT play the device returns
 // silently to the life counter, as if it had never slept.
 void deepSleepIdle();
 

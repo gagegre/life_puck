@@ -30,7 +30,7 @@ public:
   //              false = red (this change worsened it).
   //
   // Decoupling these two means a count-up tap on top (which adds damage)
-  // flashes the TOP arc in RED — visually consistent with both the tap
+  // flashes the TOP arc in RED, visually consistent with both the tap
   // location and the meaning of the change.
   void trigger(bool isTop, bool isHealing, bool isP2, bool twoPlayerMode);
 
