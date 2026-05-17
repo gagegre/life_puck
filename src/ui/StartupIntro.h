@@ -120,16 +120,22 @@ private:
   static constexpr uint32_t TBlackEnd = 3280;   // brief black beat ends
   static constexpr uint32_t TIconStart = 3280;  // first character (Boba) starts scanning in
 
-  // Character scan cadence: 380 ms scan, 360 ms holds between transitions.
-  static constexpr uint32_t TFirstHoldEnd = 4020;  // Boba hold ends (after LTR green scan in)
-  static constexpr uint32_t TTrans0End = 4400;     // RTL white scan -> Lea
-  static constexpr uint32_t THold1End = 4760;      // Lea hold ends
-  static constexpr uint32_t TTrans1End = 5140;     // LTR red scan -> Vader
-  static constexpr uint32_t THold2End = 5500;      // Vader hold ends
-  static constexpr uint32_t TTrans2End = 5880;     // RTL blue scan -> R2-D2
-  static constexpr uint32_t TFinalHoldEnd = 6240;  // R2 hold ends, fade-out begins
-  static constexpr uint32_t TBlackBeatEnd = 6360;  // R2 has fully faded
-  static constexpr uint32_t TLockStart = 6360;     // lock-on brackets begin appearing
+  // Character scan cadence. Keep these as durations, not absolute
+  // timestamps, so the icon parade can be tuned like a Flutter animation:
+  // "scan a little faster", "hold a little longer", etc.
+  static constexpr uint32_t TIconScanMs = 380;
+  static constexpr uint32_t TIconHoldMs = 360;
+  static constexpr uint32_t TR2FadeMs = 120;
+
+  static constexpr uint32_t TFirstHoldEnd = TIconStart + TIconScanMs + TIconHoldMs;
+  static constexpr uint32_t TTrans0End = TFirstHoldEnd + TIconScanMs;   // RTL white scan -> Lea
+  static constexpr uint32_t THold1End = TTrans0End + TIconHoldMs;       // Lea hold ends
+  static constexpr uint32_t TTrans1End = THold1End + TIconScanMs;       // LTR red scan -> Vader
+  static constexpr uint32_t THold2End = TTrans1End + TIconHoldMs;       // Vader hold ends
+  static constexpr uint32_t TTrans2End = THold2End + TIconScanMs;       // RTL blue scan -> R2-D2
+  static constexpr uint32_t TFinalHoldEnd = TTrans2End + TIconHoldMs;   // R2 hold ends, fade-out begins
+  static constexpr uint32_t TBlackBeatEnd = TFinalHoldEnd + TR2FadeMs;  // R2 has fully faded
+  static constexpr uint32_t TLockStart = TBlackBeatEnd;                 // lock-on brackets begin appearing
 
   // Match the visible lock-on phase to the reset count-up.
   // 30 life * 26 ms step = ~780 ms.

@@ -669,12 +669,15 @@ void StartupIntro::drawIconParade(uint32_t t) {
     applyIconStyle(_icons[index], iconColor(index), opa);
   };
 
-  // Draw the scan column + four accent fragment dots that follow it.
-  // `leftToRight` picks the sweep direction and which side the dots offset toward.
+  // Draw the scan column plus a tiny "data-slice" distortion across the
+  // current glyph. The slices are deliberately sparse: enough to read as a
+  // Star-Wars/datapad scan, not enough to turn into noise on the small LCD.
   auto drawScan = [&](uint32_t start, uint32_t end, bool leftToRight, lv_color_t scanColor) {
     const uint32_t local = t - start;
     const uint32_t dur = end - start;
+    const int16_t dir = leftToRight ? 1 : -1;
     const int16_t x = leftToRight ? lerpI16(48, 190, local, dur) : lerpI16(190, 48, local, dur);
+    const uint8_t pulseOpa = ((local / 48) % 2 == 0) ? LV_OPA_70 : LV_OPA_40;
 
     setHidden(_scanline, false);
     lv_obj_set_pos(_scanline, x, 62);
@@ -682,15 +685,30 @@ void StartupIntro::drawIconParade(uint32_t t) {
     lv_obj_set_style_bg_color(_scanline, scanColor, 0);
     lv_obj_set_style_bg_opa(_scanline, LV_OPA_100, 0);
 
-    // Four little parallel accents trailing the column at different heights.
-    for (uint8_t i = 0; i < 4; ++i) {
-      const int16_t dir = leftToRight ? 1 : -1;
-      const int16_t y = 76 + i * 22;
-      const int16_t offset = (i % 2 == 0) ? 10 : -16;
+    // Two short horizontal cuts cross the glyph near the scan column. They
+    // slide with the scan direction, giving the transition a digital wipe.
+    setHidden(_fragments[0], false);
+    lv_obj_set_pos(_fragments[0], x - (leftToRight ? 34 : 6), CenterY - 18);
+    lv_obj_set_size(_fragments[0], 40, 2);
+    lv_obj_set_style_bg_color(_fragments[0], scanColor, 0);
+    lv_obj_set_style_bg_opa(_fragments[0], pulseOpa, 0);
+
+    setHidden(_fragments[1], false);
+    lv_obj_set_pos(_fragments[1], x - (leftToRight ? 14 : 28), CenterY + 16);
+    lv_obj_set_size(_fragments[1], 30, 2);
+    lv_obj_set_style_bg_color(_fragments[1], scanColor, 0);
+    lv_obj_set_style_bg_opa(_fragments[1], LV_OPA_50, 0);
+
+    // Two small trailing specs make the scan feel like it has momentum without
+    // costing any extra LVGL objects.
+    for (uint8_t i = 2; i < 4; ++i) {
+      const int16_t y = (i == 2) ? CenterY - 36 : CenterY + 38;
+      const int16_t offset = (i == 2) ? 18 : 28;
       setHidden(_fragments[i], false);
-      lv_obj_set_pos(_fragments[i], x + dir * offset, y);
+      lv_obj_set_pos(_fragments[i], x - dir * offset, y);
+      lv_obj_set_size(_fragments[i], 12, 2);
       lv_obj_set_style_bg_color(_fragments[i], scanColor, 0);
-      lv_obj_set_style_bg_opa(_fragments[i], (i == 0 || i == 3) ? LV_OPA_40 : LV_OPA_60, 0);
+      lv_obj_set_style_bg_opa(_fragments[i], LV_OPA_40, 0);
     }
   };
 
@@ -718,7 +736,7 @@ void StartupIntro::drawIconParade(uint32_t t) {
 
   if (t < TFirstHoldEnd) {
     // 1. Boba scan-in (LTR green), then a brief hold.
-    static constexpr uint32_t TBobaScanEnd = TIconStart + (TTrans0End - TFirstHoldEnd);
+    static constexpr uint32_t TBobaScanEnd = TIconStart + TIconScanMs;
     if (t < TBobaScanEnd) {
       introTransitionTo(0, TIconStart, TBobaScanEnd, true);
     } else {
@@ -816,11 +834,16 @@ void StartupIntro::drawLockOnAndReveal(uint32_t t) {
   lv_obj_set_style_bg_opa(_root, bgOpa, 0);
 
   // ---- centre scanline pulse ---------------------------------------------
-  // A horizontal sliver that starts narrow, widens, peaks at TLockPulseEnd,
-  // then fades. Visually echoes the scan columns from the parade phase.
-  const uint8_t scanOpa = (t < TLockPulseEnd) ? lerpU8(0, 245, local, TLockPulseEnd - TLockStart)
-                                              : lerpU8(245, 70, t - TLockPulseEnd, TRevealEnd - TLockPulseEnd);
-  const int16_t scanHalf = (t < TLockPulseEnd) ? lerpI16(18, 92, local, TLockPulseEnd - TLockStart)
+  // A horizontal sliver that starts narrow, widens, briefly "acquires" the
+  // target, then fades. This makes the reveal read as calibration instead of
+  // just a transparent overlay fading away.
+  static constexpr uint32_t TAcquirePulseMs = 140;
+  const uint8_t acquirePulse = (local < TAcquirePulseMs) ? lerpU8(0, 70, local, TAcquirePulseMs)
+                                                         : lerpU8(70, 0, local - TAcquirePulseMs, TAcquirePulseMs);
+  const uint8_t baseScanOpa = (t < TLockPulseEnd) ? lerpU8(0, 230, local, TLockPulseEnd - TLockStart)
+                                                  : lerpU8(230, 60, t - TLockPulseEnd, TRevealEnd - TLockPulseEnd);
+  const uint8_t scanOpa = clampU8(baseScanOpa + acquirePulse);
+  const int16_t scanHalf = (t < TLockPulseEnd) ? lerpI16(14, 92, local, TLockPulseEnd - TLockStart)
                                                : lerpI16(92, 112, t - TLockPulseEnd, TRevealEnd - TLockPulseEnd);
   setHidden(_scanline, false);
   lv_obj_set_pos(_scanline, CenterX - scanHalf, CenterY - 2);
@@ -831,8 +854,8 @@ void StartupIntro::drawLockOnAndReveal(uint32_t t) {
   // ---- soft centre glow --------------------------------------------------
   // Big 28 px blue halo + 8 px bright core, pulsing in and out together
   // with the scanline. This is what the eye reads as the "lock target".
-  const uint8_t glowOpa = (t < TLockPulseEnd) ? lerpU8(0, 160, local, TLockPulseEnd - TLockStart)
-                                              : lerpU8(160, 45, t - TLockPulseEnd, TRevealEnd - TLockPulseEnd);
+  const uint8_t glowOpa = (t < TLockPulseEnd) ? lerpU8(0, 145, local, TLockPulseEnd - TLockStart)
+                                              : lerpU8(145, 40, t - TLockPulseEnd, TRevealEnd - TLockPulseEnd);
   setHidden(_verticalGlow, false);
   lv_obj_set_pos(_verticalGlow, CenterX - 14, CenterY - 14);
   lv_obj_set_size(_verticalGlow, 28, 28);
@@ -846,11 +869,12 @@ void StartupIntro::drawLockOnAndReveal(uint32_t t) {
 
   // ---- four lock-on bracket corners --------------------------------------
   // Horizontal ticks (top-left, top-right, bottom-left, bottom-right) that
-  // tighten inward as they brighten — `inset` shrinks 42 -> 22 px during
-  // the in-pulse and then sticks at 22 during the out-fade.
-  const uint8_t tickOpa = (t < TLockPulseEnd) ? lerpU8(0, 255, local, TLockPulseEnd - TLockStart)
-                                              : lerpU8(255, 90, t - TLockPulseEnd, TRevealEnd - TLockPulseEnd);
-  const int16_t inset = (t < TLockPulseEnd) ? lerpI16(42, 22, local, TLockPulseEnd - TLockStart) : 22;
+  // tighten inward as they brighten. The tiny acquire pulse makes the brackets
+  // flash once as they settle around the life-number position.
+  const uint8_t baseTickOpa = (t < TLockPulseEnd) ? lerpU8(0, 230, local, TLockPulseEnd - TLockStart)
+                                                  : lerpU8(230, 85, t - TLockPulseEnd, TRevealEnd - TLockPulseEnd);
+  const uint8_t tickOpa = clampU8(baseTickOpa + acquirePulse);
+  const int16_t inset = (t < TLockPulseEnd) ? lerpI16(46, 22, local, TLockPulseEnd - TLockStart) : 22;
 
   for (uint8_t i = 0; i < 4; ++i) {
     setHidden(_fragments[i], false);

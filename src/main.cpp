@@ -312,6 +312,38 @@ void setup() {
   Serial.println("Ready.");
 }
 
+#if ENABLE_STARTUP_INTRO
+static bool handleStartupIntroLoop() {
+  if (startupIntro == nullptr) return false;
+
+  // Hold-to-skip: poll the raw finger-down register at a modest cadence.
+  // Hardware::readTouchFingerDownRaw() reads CST816S register 0x02 directly
+  // over I2C — the same mechanism the radial menu uses for continuous hold
+  // tracking. It works before Hardware::touch.begin() has been called because
+  // Wire is already up from setup().
+  //
+  // We require TSkipHold ms of uninterrupted contact to skip, so the brief
+  // waking touch that triggers the deep-sleep wake interrupt can never
+  // accidentally fire the skip.
+  static uint32_t lastIntroTouchPollAt = 0;
+
+  if (Clock::tick(lastIntroTouchPollAt, 20)) {
+    const int rawDown = Hardware::readTouchFingerDownRaw();
+
+    if (rawDown == 1) {
+      startupIntro->notifyHoldStart();
+    } else if (rawDown == 0) {
+      startupIntro->notifyHoldEnd();
+    }
+    // rawDown == -1 is an I2C glitch, leave the hold state unchanged.
+  }
+
+  lv_timer_handler();
+  delay(1);
+  return true;
+}
+#endif
+
 // =============================================================================
 // loop()
 //
@@ -322,33 +354,7 @@ void setup() {
 
 void loop() {
 #if ENABLE_STARTUP_INTRO
-  if (startupIntro != nullptr) {
-    // Hold-to-skip: poll the raw finger-down register at a modest cadence.
-    // Hardware::readTouchFingerDownRaw() reads CST816S register 0x02
-    // directly over I2C — the same mechanism the radial menu uses for
-    // continuous hold tracking. It works before Hardware::touch.begin()
-    // has been called (Wire is already up from setup()).
-    //
-    // We require TSkipHold ms of uninterrupted contact to skip, so the
-    // brief waking touch that triggers the deep-sleep wake interrupt can
-    // never accidentally fire the skip.
-    static uint32_t lastIntroTouchPollAt = 0;
-
-    if (Clock::tick(lastIntroTouchPollAt, 20)) {
-      const int rawDown = Hardware::readTouchFingerDownRaw();
-
-      if (rawDown == 1) {
-        startupIntro->notifyHoldStart();
-      } else if (rawDown == 0) {
-        startupIntro->notifyHoldEnd();
-      }
-      // rawDown == -1 is an I2C glitch, leave the hold state unchanged.
-    }
-
-    lv_timer_handler();
-    delay(1);
-    return;
-  }
+  if (handleStartupIntroLoop()) return;
 #endif
 
   handleTouch();
