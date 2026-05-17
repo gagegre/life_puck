@@ -1,6 +1,6 @@
 # Life Puck
 
-A wireless-free life counter for card and board games, built on the
+A wireless-free life counter for Star Wars Unlimited, built on the
 **Waveshare ESP32-S3-Touch-LCD-1.28-B** round display module.
 
 ---

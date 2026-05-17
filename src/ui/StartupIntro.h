@@ -67,6 +67,15 @@ public:
   // the caller's pointer.
   static void skip(StartupIntro*& intro);
 
+  // ---- Hold-to-skip interface --------------------------------------------
+  //
+  // Called from loop() based on Hardware::readTouchFingerDownRaw() polling.
+  // The intro tracks hold duration internally; once TSkipHold ms of
+  // uninterrupted contact is reached, a closing arc animation completes
+  // and finish() fires automatically.
+  void notifyHoldStart();
+  void notifyHoldEnd();
+
   ~StartupIntro();
 
 private:
@@ -90,6 +99,7 @@ private:
   void drawHorizontalSwoosh(uint32_t t);    // line emerges + cone dissolves (TSweepEnd .. TLineEnd)
   void drawIconParade(uint32_t t);          // character scan transitions (TIconStart .. TFinalHoldEnd)
   void drawLockOnAndReveal(uint32_t t);     // R2 fade + brackets + bg fade (TFinalHoldEnd .. TTotal)
+  void drawSkipArc();                       // hold-to-skip ring; drawn on top, independent of t
 
   // ---- helpers ---------------------------------------------------------
   void setHidden(lv_obj_t* obj, bool hidden);
@@ -121,6 +131,11 @@ private:
   static constexpr uint32_t TLockPulseEnd  = 6740;  // brackets at full intensity, start fading
   static constexpr uint32_t TRevealEnd     = 7260;  // black overlay fully transparent
   static constexpr uint32_t TTotal         = 7260;  // intro is done; finish() fires
+
+  // How long the user must hold continuously to skip the intro.
+  // Long enough that the brief waking touch (which triggers the deep-sleep
+  // wake interrupt) can never accidentally fire the skip.
+  static constexpr uint32_t TSkipHold      = 900;
 
   struct Star {
     lv_obj_t* obj = nullptr;
@@ -158,4 +173,10 @@ private:
   lv_obj_t* _scanline = nullptr;
   lv_obj_t* _fragments[4] = {nullptr, nullptr, nullptr, nullptr};
   lv_obj_t* _icons[4] = {nullptr, nullptr, nullptr, nullptr};
+
+  // ---- Hold-to-skip state -----------------------------------------------
+  // Managed independently of the animation objects above; not touched by
+  // hideAllObjects(). _holdStartAt is 0 while no hold is in progress.
+  uint32_t  _holdStartAt = 0;
+  lv_obj_t* _skipArc = nullptr;
 };

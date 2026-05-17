@@ -10,16 +10,20 @@
 // map.
 //
 // Boot flow:
-//   1. Force the backlight off immediately.
-//   2. Detect deep-sleep wake early and restore preferences / RTC state.
-//   3. Bring up I2C / IMU / TFT / LVGL while the panel is still dark.
-//   4. Decide whether this boot should show the startup intro.
-//      - If yes: clear display GRAM to black, start the intro, then turn the
-//        backlight on. The life-counter UI is deliberately NOT built/flushed
-//        before the intro, so manual wake never flashes the counter first.
-//      - If no: build the game UI, flush one clean frame while dark, then
-//        turn the backlight on.
-//   5. After the intro finishes, build the game UI and radial overlay.
+//   1. Detect deep-sleep wake early. If we woke from sleep the LCD
+//      controller still holds the last clean life-counter frame; we
+//      deliberately do not blank it so the user never sees a black flash.
+//   2. Load NVS preferences (brightness, battery display mode) before
+//      touching the backlight, so wake comes back at the user's chosen
+//      brightness.
+//   3. Bring up I2C / IMU / TFT / LVGL.
+//   4. Restore RTC state on wake, or NVS base-life on fresh boot.
+//   5. Build the always-visible game UI, flush one synchronous frame, then
+//      build the (hidden) radial-menu overlay. Doing the overlay AFTER the
+//      first life-counter frame is what prevents a wake-flash of the old
+//      menu image that was on screen before sleeping.
+//   6. Turn the backlight on at the saved brightness, start touch, mark
+//      activity so the idle chain starts from now.
 // =============================================================================
 
 #include <Arduino.h>
@@ -44,7 +48,7 @@ static bool gWokeFromDeepSleep = false;
 // setup() after we've already latched the ESP32 wake cause and after NVS has
 // been read (so rtcState.lastSleepReason is meaningful when we slept).
 //
-//   - No wake-from-sleep                  -> ColdBoot            (intro plays)
+//   - No wake-from-sleep        -> ColdBoot           (intro plays)
 //   - Woke from sleep, reason=Manual      -> WakeFromManualSleep (intro plays)
 //   - Woke from sleep, reason=IdleTimeout -> WakeFromIdleSleep   (intro skipped)
 //   - Woke from sleep, reason=None        -> WakeFromIdleSleep   (defensive
@@ -61,38 +65,10 @@ static StartupIntro::BootReason computeBootReason(bool wokeFromDeepSleep) {
   return StartupIntro::BootReason::WakeFromIdleSleep;
 }
 
-static void buildGameUiForBoot(bool wokeFromDeepSleep) {
-  createGameUI();
-  battery.forceRefresh();
-
-  // Restore life values now that the labels exist.
-  if (wokeFromDeepSleep) {
-    gameUi.restoreValues(rtcState.life, rtcState.life2);
-    // Re-apply the final 2P/1P layout after restoring text. The restored
-    // value can change the label width, which matters for the rotated P2
-    // transform and its alignment.
-    if (game.twoPlayer) gameUi.enterTwoPlayer();
-    else gameUi.exitTwoPlayer();
-  } else {
-    gameUi.resetBoth(game.countUp, /*twoPlayerMode=*/true);
-  }
-
-  // Build the radial overlay only after the main game UI exists, so any
-  // hidden overlay objects are layered above the counter without contributing
-  // an old retained frame during wake.
-  createRadialMenuOverlay();
-}
-
 void onStartupIntroFinished(void* userData) {
   startupIntro = nullptr;
 
-  // The intro path intentionally does NOT build the life-counter UI before
-  // the intro starts. Build it now, after the animation has finished, so a
-  // manual deep-sleep wake cannot flash the counter before the intro.
-  buildGameUiForBoot(gWokeFromDeepSleep);
-
-  lv_obj_invalidate(lv_screen_active());
-  lv_refr_now(Hardware::lvDisplay);
+  createRadialMenuOverlay();
 
   analogWrite(PIN_LCD_BACKLIGHT, backlight.level());
 
@@ -207,40 +183,25 @@ void setup() {
   esp_timer_create(&tickArgs, &tickHandle);
   esp_timer_start_periodic(tickHandle, LVGL_TICK_INTERVAL_MS * 1000UL);
 
-#if ENABLE_STARTUP_INTRO
-  // Decide before building/flushing the life-counter UI. If the intro will
-  // play, the counter must not be drawn first, otherwise manual wake shows:
-  // retained/counter frame -> intro. That is the bad flash.
-  const StartupIntro::BootReason bootReason = computeBootReason(wokeFromDeepSleep);
-  if (StartupIntro::shouldShowFor(bootReason)) {
-    // Write black directly to display GRAM via SPI before enabling the
-    // backlight.
-    //
-    // On wake from manual deep sleep the GC9A01 can retain the previous
-    // life-counter frame. tft.fillScreen() is a synchronous full-panel SPI
-    // write, so the display is guaranteed black before PWM enables the light.
-    Hardware::tft.fillScreen(TFT_BLACK);
+  // Build only the always-visible life-counter layer first. The radial
+  // overlay is built AFTER the first frame so wake-from-sleep never
+  // flashes the menu/selection that was visible before sleeping.
+  createGameUI();
+  battery.forceRefresh();
 
-    startupIntro = StartupIntro::start(
-      lv_screen_active(),
-      onStartupIntroFinished,
-      nullptr);
-
-    // Push the intro's first frame while still dark. Then the first visible
-    // thing after manual wake is the intro, not the life counter.
-    lv_obj_invalidate(lv_screen_active());
-    lv_refr_now(Hardware::lvDisplay);
-
-    analogWrite(PIN_LCD_BACKLIGHT, backlight.level());
-    return;
+  // Restore life values now that the labels exist.
+  if (wokeFromDeepSleep) {
+    gameUi.restoreValues(rtcState.life, rtcState.life2);
+    // Re-apply the final 2P/1P layout after restoring text. The restored
+    // value can change the label width, which matters for the rotated P2
+    // transform and its alignment.
+    if (game.twoPlayer) gameUi.enterTwoPlayer();
+    else gameUi.exitTwoPlayer();
+  } else {
+    gameUi.resetBoth(game.countUp, /*twoPlayerMode=*/true);
   }
-#endif
 
-  // Silent boot path: either the intro is compiled out, or we're waking
-  // from an idle-timeout sleep. Build the game UI and flush one clean frame
-  // while the light is still off.
-  buildGameUiForBoot(wokeFromDeepSleep);
-
+  // Force a synchronous first-frame flush while the light is still off.
   pinMode(PIN_LCD_BACKLIGHT, OUTPUT);
   digitalWrite(PIN_LCD_BACKLIGHT, LOW);
   analogWrite(PIN_LCD_BACKLIGHT, 0);
@@ -248,9 +209,56 @@ void setup() {
   lv_obj_invalidate(lv_screen_active());
   lv_refr_now(Hardware::lvDisplay);
 
+  // Re-assert OFF once more after the flush. The next write is the intentional
+  // restore to the saved brightness.
   pinMode(PIN_LCD_BACKLIGHT, OUTPUT);
   digitalWrite(PIN_LCD_BACKLIGHT, LOW);
   analogWrite(PIN_LCD_BACKLIGHT, 0);
+
+#if ENABLE_STARTUP_INTRO
+  // Ask the intro itself whether it wants to play this boot. It says yes on
+  // cold boot and on wake from a manual sleep; no on wake from an idle-
+  // timeout sleep. This is the only place the boot path looks at the boot
+  // reason — everything past the intro behaves the same regardless.
+  const StartupIntro::BootReason bootReason = computeBootReason(wokeFromDeepSleep);
+  if (StartupIntro::shouldShowFor(bootReason)) {
+    startupIntro = StartupIntro::start(
+      lv_screen_active(),
+      onStartupIntroFinished,
+      nullptr);
+
+    // Write black directly to display GRAM via SPI before enabling the
+    // backlight.
+    //
+    // On wake from manual deep sleep the GC9A01 retains its GRAM (the
+    // life-counter frame from before sleep). Relying on LVGL's dirty-region
+    // flush (lv_refr_now) is not sufficient here: LVGL may not mark the
+    // entire panel dirty, or the flush may not have completed before the
+    // backlight pin is asserted, leaving the life-counter pixels visible
+    // for one frame.
+    //
+    // tft.fillScreen() is a synchronous SPI write that covers every pixel in
+    // GRAM before it returns, so the panel is guaranteed black when the PWM
+    // enables the backlight.
+    Hardware::tft.fillScreen(TFT_BLACK);
+
+    // The GC9A01 refreshes its panel at 60 Hz (~17 ms per frame). Even after
+    // fillScreen overwrites every GRAM pixel with black, enabling the backlight
+    // mid-scan could show one half of the panel still rendering the previous
+    // frame (life counter) while the other half is already black. Wait one
+    // full scan cycle to ensure the display has completed a clean pass with
+    // the new black GRAM before the backlight illuminates anything.
+    delay(20);
+
+    analogWrite(PIN_LCD_BACKLIGHT, backlight.level());
+    return;
+  }
+#endif
+
+  // Silent boot path: either the intro is compiled out, or we're waking
+  // from an idle-timeout sleep. Behave exactly like the original code did
+  // for any deep-sleep wake: just bring the radial overlay up and finish.
+  createRadialMenuOverlay();
 
   analogWrite(PIN_LCD_BACKLIGHT, backlight.level());
 
