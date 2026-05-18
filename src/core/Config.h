@@ -204,16 +204,16 @@ constexpr uint32_t TWO_FINGER_HOLD_MAX_MS = 600;
 constexpr uint32_t CENTER_HOLD_MS = 450;         // soft timer before menu opens
 constexpr uint32_t RESET_HOLD_MS = 800;          // hold time to confirm a reset
 constexpr uint32_t MENU_RELEASE_GRACE_MS = 450;  // fallback when raw I2C touch read fails
-constexpr uint32_t MENU_DWELL_REVEAL_MS = 900;
-constexpr uint32_t MENU_DWELL_BACK_MS = 900;
-constexpr uint32_t MENU_DWELL_COMMIT_MS = 900;
+constexpr uint32_t MENU_DWELL_REVEAL_MS = 600;
+constexpr uint32_t MENU_DWELL_BACK_MS = 600;
+constexpr uint32_t MENU_DWELL_COMMIT_MS = 600;
 // Delay before showing the top-level radial dwell ring. Quick flick/release
 // selections stay visually clean, while longer holds still show progress.
 constexpr uint32_t MENU_DWELL_PROGRESS_DELAY_MS = 180;
 // After dragging a value in a radial sub-view and lifting the finger,
 // auto-commit and close the entire menu after this idle period.
 // Centre-tap to confirm (return to top ring) still works independently.
-constexpr uint32_t MENU_AUTO_COMMIT_IDLE_MS = 600;
+constexpr uint32_t MENU_AUTO_COMMIT_IDLE_MS = 350;
 constexpr int MENU_INNER_RADIUS = 56;
 constexpr int MENU_HIT_INNER_RADIUS = 42;
 constexpr int MENU_OUTER_RADIUS = (SCREEN_W / 2) - 2;

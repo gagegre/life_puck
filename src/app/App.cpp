@@ -506,29 +506,37 @@ void handleTouch() {
   // get mis-classified on release.
   if (gesture != 0) touchRouter.cancelTwoFinger();
 
-  const bool isP2Side = game.twoPlayer && (x >= CENTER_X);
+  // Across-each-other 2P layout: P2 occupies the top half (rotated 180),
+  // P1 the bottom half. Player split is now along the Y axis, not X.
+  const bool isP2Side = game.twoPlayer && (y < CENTER_Y);
   LifeCounter& target = isP2Side ? gameUi.p2() : gameUi.p1();
 
   switch (gesture) {
-    case Gesture::SWIPE_UP:
-      // In 2P, swipe up on the P2 (flipped) half should *decrease* by 5
-      // from the absolute screen frame, so the player whose view is
-      // upside down sees a downward swipe relative to themselves.
-      target.change(isP2Side ? -5 : +5, game.twoPlayer);
-      touchRouter.swallowUntilLift();
-      break;
-
-    case Gesture::SWIPE_DOWN:
+    case Gesture::SWIPE_LEFT:
+      // 2P across: left/right is the +/- axis (matching the tap zones).
+      //   P1 (bottom):     screen-LEFT  = P1's left hand     = -5
+      //   P2 (top/flipped): screen-LEFT = P2's right hand    = +5
+      // In 1P the screen frame is the player frame: left swipe = -5.
       target.change(isP2Side ? +5 : -5, game.twoPlayer);
       touchRouter.swallowUntilLift();
       break;
 
-    case Gesture::SWIPE_LEFT:
-    case Gesture::SWIPE_RIGHT: {
-      // P1 trigger = SWIPE_LEFT; P2 trigger = SWIPE_RIGHT (their rotated "left").
-      // The confirm step is now a centre hold; the swipe only arms undo.
+    case Gesture::SWIPE_RIGHT:
+      target.change(isP2Side ? -5 : +5, game.twoPlayer);
+      touchRouter.swallowUntilLift();
+      break;
+
+    case Gesture::SWIPE_UP:
+    case Gesture::SWIPE_DOWN: {
+      // Undo arm has moved to the up/down axis since left/right is now
+      // ±5. Each player triggers undo by swiping "back" in their own
+      // frame, i.e. toward their own edge of the screen, away from the
+      // divider:
+      //   P1 (bottom):     SWIPE_DOWN (toward screen bottom = P1's back)
+      //   P2 (top/flipped): SWIPE_UP   (toward screen top    = P2's back)
+      // The confirm step is a centre hold; the swipe only arms undo.
       const bool isTrigger =
-          (!isP2Side && gesture == Gesture::SWIPE_LEFT) || (isP2Side && gesture == Gesture::SWIPE_RIGHT);
+          (!isP2Side && gesture == Gesture::SWIPE_DOWN) || (isP2Side && gesture == Gesture::SWIPE_UP);
       if (isTrigger && target.beginUndoPending()) {
         undoPending.arm(isP2Side ? 1 : 0);
         undoPendingOverlay.show(undoPending.player, game.twoPlayer);
@@ -539,7 +547,7 @@ void handleTouch() {
     } break;
 
     case Gesture::SINGLE_TAP:
-      target.tapped(y, game.twoPlayer);
+      target.tapped(x, y, game.twoPlayer);
       touchRouter.recordAction();
       break;
 

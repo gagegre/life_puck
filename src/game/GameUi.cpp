@@ -11,11 +11,11 @@ void GameUi::begin(lv_obj_t* parent, FlashManager* flash, Battery* battery) {
 
   _divider = lv_obj_create(parent);
   lv_obj_remove_style_all(_divider);
-  // Longer divider (120 px) for stronger visual separation in 2P mode.
-  // Sits centred vertically across the screen, ending just shy of the
-  // round bezel on each end so the corners don't get clipped.
-  lv_obj_set_size(_divider, 3, 120);
-  lv_obj_set_pos(_divider, CENTER_X - 1, CENTER_Y - 60);
+  // Horizontal divider for the across-each-other 2P layout: 120 px wide,
+  // 3 px tall, centred at screen midline. The two counters sit above
+  // (P2, rotated 180 deg) and below (P1) this line.
+  lv_obj_set_size(_divider, 120, 3);
+  lv_obj_set_pos(_divider, CENTER_X - 60, CENTER_Y - 1);
   lv_obj_set_style_bg_color(_divider, COLOR_DIVIDER, 0);
   lv_obj_set_style_bg_opa(_divider, LV_OPA_80, 0);
   lv_obj_set_style_radius(_divider, 1, 0);
@@ -30,9 +30,10 @@ void GameUi::begin(lv_obj_t* parent, FlashManager* flash, Battery* battery) {
 void GameUi::enterTwoPlayer() {
   _twoPlayerMode = true;
   applyFonts();
-  _p1.centerHalf(true);
+  // Across-each-other layout: P1 below the divider, P2 above (rotated 180).
+  _p1.centerHalf(/*topSide=*/false);
   _p2.setVisible(true);
-  _p2.centerHalf(false);
+  _p2.centerHalf(/*topSide=*/true);
   lv_obj_remove_flag(_divider, LV_OBJ_FLAG_HIDDEN);
 }
 

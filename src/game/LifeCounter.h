@@ -33,9 +33,25 @@ class FlashManager;
 
 class LifeCounter {
 public:
-  // Vertical offset of the sub-label below the counter (and the delta
-  // badge above it). Same in 1P and 2P -- spacing reads identically.
+  // Vertical offset of the base sub-label below the counter (in the
+  // player's own reading frame). The delta badge is anchored directly to
+  // the counter's top-right corner via lv_obj_align_to and does NOT use
+  // these offsets.
+  //   LABEL_DY    : 1P (counter centred on the screen, plenty of room).
+  //   LABEL_DY_2P : 2P across, tighter so the base sub-label stays inside
+  //                 the round 240 px bezel.
   static constexpr int LABEL_DY = 52;
+  static constexpr int LABEL_DY_2P = 46;
+
+  // 2P across: each counter sits this far above (P2) or below (P1) screen
+  // centre. Counters use life_font_72 (~52 px tall), so y = +/-40 leaves
+  // roughly 14 px between the top of the counter glyph and the horizontal
+  // divider at screen centre -- close enough to feel like a single dense
+  // scoreboard, but with breathing room. The delta badge no longer sits
+  // above the counter (it's now top-right of it), so this offset doesn't
+  // need to budget space for the badge clearing the divider.
+  static constexpr int Y_OFFSET_2P = 40;
+
   static constexpr uint32_t BUNDLE_MS = 1500;
 
   // Fires when this counter just transitioned to distance == 0.
@@ -111,15 +127,20 @@ public:
     return distanceToDefeat() == 0;
   }
 
-  // Tap: top half = +1, bottom half = -1 (inverted for the flipped P2 view).
-  void tapped(int yScreen, bool twoPlayerMode);
+  // Tap: routes the touch to a +/-1 change based on the current layout.
+  // The axis is left/right in both 1P and 2P-across, so the rule
+  // "each player's right hand = +1, left hand = -1" holds in both
+  // modes. In 2P, P2 is rotated 180 deg, so P2's right hand maps to
+  // screen-left -- the flip is handled internally.
+  void tapped(int xScreen, int yScreen, bool twoPlayerMode);
 
   // ---- layout ------------------------------------------------------------
 
   // 1P layout: counter centred on the screen.
   void centerFull();
-  // 2P layout: counter aligned to one side of the centre divider.
-  void centerHalf(bool leftSide);
+  // 2P across layout: counter aligned to its half of the screen, above
+  // (P2) or below (P1) the horizontal centre divider.
+  void centerHalf(bool topSide);
 
   void useFont(const lv_font_t* f);
 
@@ -136,9 +157,6 @@ public:
   }
 
 private:
-  // px between sub-label inner edge and divider in 2P mode.
-  static constexpr int DIVIDER_GAP = 20;
-
   // ---- value state ------------------------------------------------------
   int _value = STARTING_LIFE;
   int _baseLife = STARTING_LIFE;
@@ -182,16 +200,20 @@ private:
   FlashManager* _flash = nullptr;
   bool _isP2 = false;
   bool _flipped = false;
-  // 0 in 1P; -1/+1 in 2P so refreshLabel() can re-run divider-edge
-  // alignment whenever the digit width changes.
-  int _lastOx = 0;
+  // 0 in 1P; +/-Y_OFFSET_2P in 2P-across. Stored so refreshLabel() can
+  // re-run the layout when the digit width changes (e.g. transition
+  // between 1- and 2-digit values during the reset animation).
+  int _lastOy = 0;
   DefeatCb _defeatCb = nullptr;
 
   // ---- helpers ----------------------------------------------------------
   void applyFlip(lv_obj_t* obj);
   void updatePivot(lv_obj_t* obj);
-  void repositionMainLabel(int ox);
-  void repositionSubLabels(int ox);
+  void repositionMainLabel(int oy);
+  void repositionSubLabels(int oy);
+  // Anchor the delta badge to the top-right corner of the counter, in
+  // the player's reading frame. No-op while the badge is hidden.
+  void repositionDelta();
   void showDelta(int accDelta);
   void hideDelta();
   void startBump();

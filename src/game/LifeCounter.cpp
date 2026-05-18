@@ -78,13 +78,15 @@ void LifeCounter::change(int delta, bool twoPlayerMode) {
   showDelta(_accDelta);
 
   // Flash arc:
-  //   position = tap location (top vs bottom), always follows delta sign
-  //   colour   = mode-dependent meaning: heal = green, damage = red
-  // The two are decoupled so the visual matches both the finger
-  // position and the in-game consequence simultaneously.
-  const bool tappedTop = (delta > 0);
+  //   position = the player's "+/-" rim zone (1P: right/left half;
+  //              2P across: each player's right/left quadrant).
+  //              Always follows delta sign.
+  //   colour   = mode-dependent meaning: heal = green, damage = red.
+  // The two are decoupled so the visual matches both the finger position
+  // and the in-game consequence simultaneously.
+  const bool isPlus = (delta > 0);
   const bool isHealing = _countUp ? (delta < 0) : (delta > 0);
-  if (_flash) _flash->trigger(tappedTop, isHealing, _isP2, twoPlayerMode);
+  if (_flash) _flash->trigger(isPlus, isHealing, _isP2, twoPlayerMode);
 
   // Defeat detection: distance == 0 means defeat in either mode.
   if (distanceToDefeat() == 0 && _defeatCb) _defeatCb(_isP2 ? 1 : 0);
@@ -115,6 +117,7 @@ bool LifeCounter::beginUndoPending() {
     lv_obj_set_style_bg_color(_deltaLbl, COLOR_MENU_ORANGE, 0);
     lv_obj_remove_flag(_deltaLbl, LV_OBJ_FLAG_HIDDEN);
     updatePivot(_deltaLbl);
+    repositionDelta();
   }
   refreshLabel();
   return true;
@@ -166,28 +169,36 @@ void LifeCounter::reset(bool countUpMode) {
   _resetActive = true;
 }
 
-void LifeCounter::tapped(int yScreen, bool twoPlayerMode) {
-  const bool topOfScreen = (yScreen < CENTER_Y);
-  const bool isPlus = _flipped ? !topOfScreen : topOfScreen;
+void LifeCounter::tapped(int xScreen, int yScreen, bool twoPlayerMode) {
+  // Unified left/right tap axis across 1P and 2P-across so the mental
+  // model is the same in both modes: each player's own right hand = +1,
+  // left hand = -1. In 2P, P2 is rotated 180 deg, so P2's own right
+  // hand reaches toward screen-LEFT -- the _flipped branch (set only
+  // for P2) inverts the sign so the rule holds in P2's frame too.
+  (void)yScreen;
+  const bool rightOfScreen = (xScreen >= CENTER_X);
+  const bool isPlus = _flipped ? !rightOfScreen : rightOfScreen;
   change(isPlus ? +1 : -1, twoPlayerMode);
 }
 
 // ---- layout ---------------------------------------------------------------
 
 void LifeCounter::centerFull() {
-  _lastOx = 0;
+  _lastOy = 0;
   repositionMainLabel(0);
   repositionSubLabels(0);
+  repositionDelta();
 }
 
-void LifeCounter::centerHalf(bool leftSide) {
-  // In 2P, use only the side/sign as the layout anchor. The actual
-  // x offset depends on the current text width so the inner edge can
-  // stay a fixed distance from the divider.
-  const int ox = leftSide ? -1 : +1;
-  _lastOx = ox;
-  repositionMainLabel(ox);
-  repositionSubLabels(ox);
+void LifeCounter::centerHalf(bool topSide) {
+  // 2P across: P2 sits above the divider, P1 below. Sub-labels follow
+  // along on the player's "below the counter" side (handled by _flipped
+  // inside repositionSubLabels).
+  const int oy = topSide ? -Y_OFFSET_2P : +Y_OFFSET_2P;
+  _lastOy = oy;
+  repositionMainLabel(oy);
+  repositionSubLabels(oy);
+  repositionDelta();
 }
 
 void LifeCounter::useFont(const lv_font_t* f) {
@@ -197,6 +208,9 @@ void LifeCounter::useFont(const lv_font_t* f) {
     lv_obj_set_style_transform_pivot_x(_label, lv_obj_get_width(_label) / 2, 0);
     lv_obj_set_style_transform_pivot_y(_label, lv_obj_get_height(_label) / 2, 0);
   }
+  // Counter's bounding box just changed; keep the badge stuck to its
+  // (new) top-right corner. No-op while the badge is hidden.
+  repositionDelta();
 }
 
 void LifeCounter::setVisible(bool visible) {
@@ -316,58 +330,77 @@ void LifeCounter::updatePivot(lv_obj_t* obj) {
 
 // Position the main life number.
 //
-//   1P: centred on the screen.
-//   2P: inner edge sits DIVIDER_GAP px from the divider, matching the
-//       base/damage label placement.
-void LifeCounter::repositionMainLabel(int ox) {
+//   1P:        centred on the screen (oy == 0).
+//   2P across: horizontally centred, vertically shifted into the player's
+//              half. The horizontal divider sits at y == CENTER_Y, the
+//              counter centre at y == CENTER_Y +/- Y_OFFSET_2P.
+void LifeCounter::repositionMainLabel(int oy) {
   if (!_label) return;
+  lv_obj_align(_label, LV_ALIGN_CENTER, 0, oy);
+}
 
-  if (ox == 0) {
-    lv_obj_center(_label);
+// Position the secondary base/damage label relative to the main counter.
+//
+// The base label sits BELOW the counter in the player's own frame.
+// For P1 (unflipped) that's larger screen-y, for P2 (flipped) that's
+// smaller screen-y. Same convention in 1P and 2P across: the base
+// label is always the "footnote" under the big number from each
+// player's reading direction.
+//
+// 2P across uses a slightly tighter LABEL_DY_2P so the base sub-label
+// stays inside the round bezel at y ~= +/-108.
+//
+// The delta badge is NOT positioned here -- it's anchored directly to
+// the counter via repositionDelta() so it tracks the counter's actual
+// bounding box (which changes with digit count).
+void LifeCounter::repositionSubLabels(int oy) {
+  const bool twoPAcross = (oy != 0);
+  const int dy = twoPAcross ? LABEL_DY_2P : LABEL_DY;
+  const int baseDy = _flipped ? -dy : dy;
+
+  if (_baseLbl) lv_obj_align(_baseLbl, LV_ALIGN_CENTER, 0, oy + baseDy);
+}
+
+// Anchor the delta badge in the PLAYER's reading frame.
+//
+//   1P              : top-centred above the counter (over the digit).
+//   2P P1 (bottom)  : screen top-right corner of the counter.
+//   2P P2 (top)     : screen bottom-left corner -- which P2 perceives
+//                     as top-right after the 180 deg label rotation.
+//
+// 2P uses a corner anchor (rather than top-mid) because the badge would
+// otherwise sit on or near the divider where the other player's badge
+// might also land; offsetting it to the player's outer corner keeps the
+// two players' deltas visually separated.
+//
+// lv_obj_align_to is computed on the unrotated bounding box, so the
+// rotation transform on _deltaLbl doesn't change the math; it only
+// affects how the glyphs render. The small offsets push the badge
+// slightly past the edge so it reads as "hanging off" the counter.
+//
+// Called whenever the counter's geometry might have changed (digit
+// width on refreshLabel, font change, layout shift between 1P/2P) AND
+// whenever the badge is shown.
+void LifeCounter::repositionDelta() {
+  if (!_deltaLbl || !_label) return;
+  if (lv_obj_has_flag(_deltaLbl, LV_OBJ_FLAG_HIDDEN)) return;
+
+  // Both layouts must be current for align_to to compute correctly.
+  lv_obj_update_layout(_label);
+  lv_obj_update_layout(_deltaLbl);
+
+  // _lastOy == 0 is the 1P layout (centerFull); any non-zero offset
+  // means 2P-across (centerHalf).
+  const bool twoPAcross = (_lastOy != 0);
+  if (!twoPAcross) {
+    lv_obj_align_to(_deltaLbl, _label, LV_ALIGN_OUT_TOP_MID, 0, -2);
     return;
   }
 
-  lv_obj_update_layout(_label);
-  const int labelW = lv_obj_get_width(_label);
-  const int sign = (ox < 0) ? -1 : +1;
-  const int bx = sign * (DIVIDER_GAP + labelW / 2);
-  lv_obj_align(_label, LV_ALIGN_CENTER, bx, 0);
-}
-
-// Position the secondary labels relative to the main counter.
-//
-//   Base label : sits BELOW the counter.
-//                 - 1P (ox == 0): centred under the counter.
-//                 - 2P (ox != 0): its INNER edge (toward the divider)
-//                                 sits near the divider, not centred
-//                                 within the half. With a 2-digit
-//                                 counter "10" on the left half, the
-//                                 sub-label "5/30" hugs the divider on
-//                                 the right of P1's half.
-//   Delta badge: sits ABOVE the counter, always centred at ox.
-//
-// For the flipped (P2) label, on-screen y direction is inverted from
-// P2's perspective, so the y components flip sign. The 2P x math is
-// symmetric in |ox|, so the same sign(ox) logic handles both players.
-void LifeCounter::repositionSubLabels(int ox) {
-  const int baseDy = _flipped ? -LABEL_DY : LABEL_DY;
-  const int deltaDy = _flipped ? LABEL_DY : -LABEL_DY;
-
-  if (_baseLbl) {
-    int bx = ox;  // 1P default: same centre as the counter
-    if (ox != 0) {
-      // 2P: inner edge of sub-label sits DIVIDER_GAP px from screen
-      // centre. ox is negative for P1 (left half), positive for P2.
-      lv_obj_update_layout(_baseLbl);
-      const int subW = lv_obj_get_width(_baseLbl);
-      const int sign = (ox < 0) ? -1 : +1;
-      bx = sign * (DIVIDER_GAP + subW / 2);
-    }
-    lv_obj_align(_baseLbl, LV_ALIGN_CENTER, bx, baseDy);
-    if (_deltaLbl) {
-      lv_obj_align(_deltaLbl, LV_ALIGN_CENTER, bx, deltaDy);
-    }
-  }
+  const lv_align_t align = _flipped ? LV_ALIGN_OUT_LEFT_BOTTOM : LV_ALIGN_OUT_RIGHT_TOP;
+  const int xOfs = _flipped ? -2 : 2;
+  const int yOfs = _flipped ? 2 : -2;
+  lv_obj_align_to(_deltaLbl, _label, align, xOfs, yOfs);
 }
 
 void LifeCounter::showDelta(int accDelta) {
@@ -383,6 +416,9 @@ void LifeCounter::showDelta(int accDelta) {
   lv_obj_set_style_bg_color(_deltaLbl, isHealing ? COLOR_PLUS : COLOR_MINUS, 0);
   updatePivot(_deltaLbl);
   lv_obj_remove_flag(_deltaLbl, LV_OBJ_FLAG_HIDDEN);
+  // Anchor to counter's top-right corner. Must happen AFTER unhide so the
+  // hidden-flag short-circuit in repositionDelta() doesn't skip the work.
+  repositionDelta();
 }
 
 void LifeCounter::hideDelta() {
@@ -439,11 +475,12 @@ void LifeCounter::refreshLabel() {
   lv_obj_set_style_text_color(_label, mainColor, 0);
   lv_label_set_text_fmt(_label, "%d", _value);
 
-  // Whenever the text changes the label's width may change. In 2P mode
-  // the main life label is aligned by its INNER edge against the divider,
-  // so re-run the x layout whenever the number changes.
+  // Re-run the layout whenever the text changes. In 2P across the y
+  // position is fixed (no width-dependent math), but we still want a
+  // single layout call so the pivot adjustment below sees up-to-date
+  // dimensions.
   lv_obj_update_layout(_label);
-  repositionMainLabel(_lastOx);
+  repositionMainLabel(_lastOy);
   if (_flipped) {
     lv_obj_set_style_transform_pivot_x(_label, lv_obj_get_width(_label) / 2, 0);
     lv_obj_set_style_transform_pivot_y(_label, lv_obj_get_height(_label) / 2, 0);
@@ -477,10 +514,15 @@ void LifeCounter::refreshLabel() {
   }
   lv_label_set_text(_baseLbl, buf);
   updatePivot(_baseLbl);
-  // In 2P mode the sub-label position depends on its own width
-  // (inner edge sits near the divider), so re-align whenever the
-  // text changes. No-op in 1P beyond a redundant align call.
-  repositionSubLabels(_lastOx);
+  // Sub-labels are horizontally centred under the counter in both modes
+  // now, so the position only depends on _lastOy. The re-align is still
+  // useful when the font/text changes the bounding box.
+  repositionSubLabels(_lastOy);
+
+  // The counter's width changes with digit count (e.g. "9" -> "10" during
+  // the reset animation). Re-anchor the delta to the new top-right corner.
+  // No-op while the badge is hidden.
+  repositionDelta();
 }
 
 // ---- undo history ---------------------------------------------------------

@@ -1,16 +1,19 @@
 // FlashManager.h
 //
 // Six feedback arc sprites that briefly light up around the rim each
-// time a life change occurs. The arc's position (top vs bottom, left
-// vs right half) follows the tap location and the colour follows the
-// in-game meaning of the change (green = heal, red = damage), so the
-// flash reads as both a confirmation of the tap and a hint at its
-// effect.
+// time a life change occurs. The arc's position (left vs right half,
+// or quadrant in 2P) follows the tap location and the colour follows
+// the in-game meaning of the change (green = heal, red = damage), so
+// the flash reads as both a confirmation of the tap and a hint at
+// its effect.
 //
 // There are six arcs because we need a separate sprite for each of:
-//   1P top / 1P bottom
-//   2P P1 top / P1 bottom (left half, clipped at the divider)
-//   2P P2 top / P2 bottom (right half, clipped at the divider)
+//   1P: left / right half-circle arcs (right = + tap, left = - tap).
+//   2P across: one arc per screen quadrant (TL, TR, BL, BR), each
+//              clipped to its quadrant so the flash hugs only the
+//              tapped corner. Player association:
+//                P2 (top, flipped) : + tap = TL,  - tap = TR
+//                P1 (bottom)       : + tap = BR,  - tap = BL
 
 #pragma once
 
@@ -24,15 +27,16 @@ public:
 
   // Fire a directional flash arc.
   //
-  //   isTop:     true = arc on the tapped (top) half, false = bottom.
-  //              Always follows tap position, never inverted by mode.
+  //   isPlus:    true  = the tap added life (in the player's frame),
+  //              false = the tap subtracted life. Drives which screen
+  //              quadrant lights up (see header for the mapping).
   //   isHealing: true = green (this change improved the player's state),
   //              false = red (this change worsened it).
   //
-  // Decoupling these two means a count-up tap on top (which adds damage)
-  // flashes the TOP arc in RED, visually consistent with both the tap
-  // location and the meaning of the change.
-  void trigger(bool isTop, bool isHealing, bool isP2, bool twoPlayerMode);
+  // Decoupling these two means a count-up + tap (which adds damage)
+  // flashes the "+ quadrant" in RED -- visually consistent with both
+  // the tap location and the meaning of the change.
+  void trigger(bool isPlus, bool isHealing, bool isP2, bool twoPlayerMode);
 
   // Per-loop tick: fade out any active flashes.
   void update();
@@ -49,12 +53,14 @@ private:
   };
 
   bool _contracted = false;
-  lv_obj_t *_arc1PPlus = nullptr, *_arc1PMinus = nullptr;
-  lv_obj_t *_arc2PP1Plus = nullptr, *_arc2PP1Minus = nullptr;
-  lv_obj_t *_arc2PP2Plus = nullptr, *_arc2PP2Minus = nullptr;
-  Flash _f1PPlus, _f1PMinus;
-  Flash _f2PP1Plus, _f2PP1Minus;
-  Flash _f2PP2Plus, _f2PP2Minus;
+  // 1P half-circle arcs, named by their screen position. Right arc is
+  // the + tap target, left arc the - tap target.
+  lv_obj_t *_arc1PRight = nullptr, *_arc1PLeft = nullptr;
+  // 2P-across quadrant arcs, named by their screen position.
+  lv_obj_t *_arcTL = nullptr, *_arcTR = nullptr;
+  lv_obj_t *_arcBL = nullptr, *_arcBR = nullptr;
+  Flash _f1PRight, _f1PLeft;
+  Flash _fTL, _fTR, _fBL, _fBR;
 
   static void styleArc(lv_obj_t* arc, lv_color_t color, int s, int e, int width);
   static void makeArc(lv_obj_t*& arc, lv_color_t color, int s, int e, lv_obj_t* parent, int width);
