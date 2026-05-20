@@ -35,9 +35,15 @@ static const lv_color_t Progress = lv_color_hex(0xEAF6FF);
 }  // namespace Menu
 
 namespace Confirm {
-static const lv_color_t Reset = COLOR_MINUS;
-static const lv_color_t Undo = COLOR_MENU_ORANGE;
+static const lv_color_t Reset      = COLOR_MINUS;
 static const lv_color_t ResetTrack = lv_color_hex(0x1A0000);
-static const lv_color_t UndoTrack = lv_color_hex(0x1F1200);
+static const char* const ResetIcon = FA_ICON_RESET;
+
+static const lv_color_t Undo       = COLOR_MENU_ORANGE;
+static const lv_color_t UndoTrack  = lv_color_hex(0x1F1200);
+static const char* const UndoIcon  = FA_ICON_UNDO;
+
+static const lv_color_t SkipArc    = lv_color_hex(0xE8F6FF);
+static const lv_color_t SkipTrack  = lv_color_hex(0x2C5F82);
 }  // namespace Confirm
 }  // namespace Theme

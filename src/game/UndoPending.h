@@ -12,6 +12,7 @@
 
 #include "Config.h"
 #include "HoldConfirmation.h"
+#include "OuterRingDwell.h"
 #include <lvgl.h>
 
 class UndoPendingOverlay {
@@ -22,9 +23,7 @@ public:
   void setProgress(float p);
 
 private:
-  lv_obj_t* _dim = nullptr;
-  lv_obj_t* _arc = nullptr;
-  lv_obj_t* _icon = nullptr;
+  OuterRingDwell _dwell;
 };
 
 struct UndoPending {

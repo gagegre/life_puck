@@ -33,6 +33,7 @@
 
 #include <Arduino.h>
 #include <lvgl.h>
+#include "OuterRingDwell.h"
 
 #ifndef ENABLE_STARTUP_INTRO
 #define ENABLE_STARTUP_INTRO 1
@@ -196,5 +197,5 @@ private:
   // Managed independently of the animation objects above; not touched by
   // hideAllObjects(). _holdStartAt is 0 while no hold is in progress.
   uint32_t _holdStartAt = 0;
-  lv_obj_t* _skipArc = nullptr;
+  OuterRingDwell _skipDwell;
 };

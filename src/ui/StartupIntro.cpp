@@ -303,31 +303,12 @@ void StartupIntro::create() {
   // once now so the first paint is correct rather than blank-for-16-ms.
   // ---- Hold-to-skip arc --------------------------------------------------
   // Created last so it sits on top of every animation object. Not part of
-  // the animation pool hideAllObjects() never touches it; drawSkipArc()
+  // the animation pool; hideAllObjects() never touches it; drawSkipArc()
   // controls its visibility independently each tick.
   //
   // Indicator:  3 px crisp white ring, fills clockwise from 12 o'clock.
   // Background: 1 px faint dim track shows the full circle as a guide.
-  // No knob dot. Not clickable (_root already consumes all touches).
-  {
-    lv_obj_t* arc = lv_arc_create(_root);
-    lv_obj_set_size(arc, ScreenW - 14, ScreenH - 14);
-    lv_obj_center(arc);
-    lv_arc_set_mode(arc, LV_ARC_MODE_NORMAL);
-    lv_arc_set_bg_angles(arc, 0, 360);  // full-circle background track
-    lv_arc_set_angles(arc, 0, 0);       // indicator starts empty
-    lv_arc_set_rotation(arc, 270);      // 0° at 12 o'clock → fills clockwise
-    lv_obj_set_style_arc_color(arc, C_CORE, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_opa(arc, LV_OPA_80, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_width(arc, 3, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_color(arc, C_DIM, LV_PART_MAIN);
-    lv_obj_set_style_arc_opa(arc, LV_OPA_30, LV_PART_MAIN);
-    lv_obj_set_style_arc_width(arc, 1, LV_PART_MAIN);
-    lv_obj_set_style_opa(arc, LV_OPA_TRANSP, LV_PART_KNOB);
-    lv_obj_remove_flag(arc, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_flag(arc, LV_OBJ_FLAG_HIDDEN);
-    _skipArc = arc;
-  }
+  _skipDwell.begin(_root, OuterRingDwell::Style::Skip);
 
   _startedAt = lv_tick_get();
   _timer = lv_timer_create(timerThunk, 16, this);
@@ -928,28 +909,20 @@ void StartupIntro::notifyHoldEnd() {
 }
 
 void StartupIntro::drawSkipArc() {
-  if (!_skipArc) return;
-
   if (_holdStartAt == 0) {
-    // No hold in progress, keep the arc invisible and reset its angle so
-    // the next hold starts from a clean state.
-    setHidden(_skipArc, true);
-    lv_arc_set_angles(_skipArc, 0, 0);
+    _skipDwell.hide();
     return;
   }
 
   const uint32_t elapsed = lv_tick_elaps(_holdStartAt);
-
-  // Compute fill angle (0 → 360° over TSkipHold ms), clamped below 360
-  // so lv_arc never sees start == end which would render as full-circle.
-  const uint16_t deg = (elapsed >= TSkipHold) ? 359 : static_cast<uint16_t>(359UL * elapsed / TSkipHold);
-
-  lv_arc_set_angles(_skipArc, 0, deg);
-  setHidden(_skipArc, false);
+  const float p = (elapsed >= TSkipHold)
+      ? 1.0f
+      : static_cast<float>(elapsed) / static_cast<float>(TSkipHold);
+  _skipDwell.setProgress(p);
 
   if (elapsed >= TSkipHold) {
-    // Arc fully closed → skip. finish() tears down the LVGL tree
-    // (including _skipArc) and deletes this. Nothing may run after.
+    // Arc fully closed → skip. finish() tears down the LVGL tree and
+    // deletes this.  Nothing may run after.
     finish();
   }
 }
