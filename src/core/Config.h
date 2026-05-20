@@ -23,9 +23,9 @@
 // External custom font assets (provided as .c files in the sketch folder)
 // ==============================================================
 
-LV_FONT_DECLARE(life_font_72);
-LV_FONT_DECLARE(life_font_96);
 LV_FONT_DECLARE(font_awesome_icons);
+LV_FONT_DECLARE(montserrat_124);
+LV_FONT_DECLARE(montserrat_80);
 
 // ==============================================================
 // Font Awesome glyphs used in the UI. UTF-8 byte sequences for the

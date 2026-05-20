@@ -79,8 +79,8 @@ The sketch requires two custom fonts generated from your chosen typeface:
 
 | Symbol | File | Used for |
 |---|---|---|
-| `life_font_96` | `src/life_font_96.c` | 1P life counter (large) |
-| `life_font_72` | `src/life_font_72.c` | 2P life counters (smaller) |
+| `montserrat_124` | `src/montserrat_124.c` | 1P life counter (large) |
+| `montserrat_80` | `src/montserrat_80.c` | 2P life counters (smaller) |
 
 Generate them with the LVGL font converter at https://lvgl.io/tools/fontconverter.
 Include only the digits 0-9 to keep file size small. Drop both `.c` files

@@ -24,7 +24,6 @@ static const lv_color_t Warning = COLOR_BAT_YELLOW;
 static const lv_color_t Critical = COLOR_MINUS;
 
 // Sub-label colour states for the "damage/base" secondary label.
-static const lv_color_t SubLabel    = lv_color_hex(0x666666);  // normal zone, muted grey
 static const lv_color_t BumpFeedback = lv_color_hex(0x555555);  // rejected-input counter flash
 static const lv_color_t ZeroDamage  = lv_color_hex(0x444444);  // sub-label when no damage taken
 

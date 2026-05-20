@@ -30,10 +30,9 @@ struct GameState {
 };
 
 // Picks the right custom font for the current mode.
-//   1P -> larger font (life_font_96)
-//   2P -> smaller font (life_font_72)
+//   1P -> montserrat_124, 2P -> montserrat_80
 inline const lv_font_t* fontForMode(bool twoPlayerMode) {
-  return twoPlayerMode ? &life_font_72 : &life_font_96;
+  return twoPlayerMode ? &montserrat_80 : &montserrat_124;
 }
 
 class GameUi {

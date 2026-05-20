@@ -19,15 +19,8 @@ void LifeCounter::begin(lv_obj_t* parent, FlashManager* flash, bool isP2, bool f
   // ---- main life label ----
   _label = lv_label_create(parent);
   lv_obj_set_style_text_color(_label, COLOR_FG, 0);
-  lv_obj_set_style_text_font(_label, &life_font_96, 0);
+  lv_obj_set_style_text_font(_label, &montserrat_124, 0);
   applyFlip(_label);
-
-  // ---- base / damage label ("8/30") ----
-  _baseLbl = lv_label_create(parent);
-  lv_obj_set_style_text_font(_baseLbl, LV_FONT_DEFAULT, 0);
-  lv_obj_set_style_text_color(_baseLbl, Theme::Game::SubLabel, 0);
-  lv_label_set_text(_baseLbl, "");
-  applyFlip(_baseLbl);
 
   // ---- delta badge pill ----
   _deltaLbl = lv_label_create(parent);
@@ -186,19 +179,15 @@ void LifeCounter::tapped(int xScreen, int yScreen, bool twoPlayerMode) {
 
 void LifeCounter::centerFull() {
   _lastOy = 0;
-  repositionMainLabel(0);
-  repositionSubLabels(0);
+  repositionLifeLabel(0);
   repositionDelta();
 }
 
 void LifeCounter::centerHalf(bool topSide) {
-  // 2P across: P2 sits above the divider, P1 below. Sub-labels follow
-  // along on the player's "below the counter" side (handled by _flipped
-  // inside repositionSubLabels).
+  // 2P across: P2 sits above the divider, P1 below.
   const int oy = topSide ? -Theme::Game::CounterOy2P : +Theme::Game::CounterOy2P;
   _lastOy = oy;
-  repositionMainLabel(oy);
-  repositionSubLabels(oy);
+  repositionLifeLabel(oy);
   repositionDelta();
 }
 
@@ -223,7 +212,6 @@ void LifeCounter::setVisible(bool visible) {
       lv_obj_remove_flag(o, LV_OBJ_FLAG_HIDDEN);
   };
   setHide(_label, !visible);
-  setHide(_baseLbl, !visible);
   if (!visible) hideDelta();
 }
 
@@ -335,31 +323,9 @@ void LifeCounter::updatePivot(lv_obj_t* obj) {
 //   2P across: horizontally centred, vertically shifted into the player's
 //              half. The horizontal divider sits at y == CENTER_Y, the
 //              counter centre at y == CENTER_Y +/- Y_OFFSET_2P.
-void LifeCounter::repositionMainLabel(int oy) {
+void LifeCounter::repositionLifeLabel(int oy) {
   if (!_label) return;
   lv_obj_align(_label, LV_ALIGN_CENTER, 0, oy);
-}
-
-// Position the secondary base/damage label relative to the main counter.
-//
-// The base label sits BELOW the counter in the player's own frame.
-// For P1 (unflipped) that's larger screen-y, for P2 (flipped) that's
-// smaller screen-y. Same convention in 1P and 2P across: the base
-// label is always the "footnote" under the big number from each
-// player's reading direction.
-//
-// 2P across uses a slightly tighter LABEL_DY_2P so the base sub-label
-// stays inside the round bezel at y ~= +/-108.
-//
-// The delta badge is NOT positioned here -- it's anchored directly to
-// the counter via repositionDelta() so it tracks the counter's actual
-// bounding box (which changes with digit count).
-void LifeCounter::repositionSubLabels(int oy) {
-  const bool twoPAcross = (oy != 0);
-  const int dy = twoPAcross ? Theme::Game::SubLabelDy2P : Theme::Game::SubLabelDy;
-  const int baseDy = _flipped ? -dy : dy;
-
-  if (_baseLbl) lv_obj_align(_baseLbl, LV_ALIGN_CENTER, 0, oy + baseDy);
 }
 
 // Anchor the delta badge in the PLAYER's reading frame.
@@ -481,44 +447,11 @@ void LifeCounter::refreshLabel() {
   // single layout call so the pivot adjustment below sees up-to-date
   // dimensions.
   lv_obj_update_layout(_label);
-  repositionMainLabel(_lastOy);
+  repositionLifeLabel(_lastOy);
   if (_flipped) {
     lv_obj_set_style_transform_pivot_x(_label, lv_obj_get_width(_label) / 2, 0);
     lv_obj_set_style_transform_pivot_y(_label, lv_obj_get_height(_label) / 2, 0);
   }
-
-  // ---- damage / base sub-label ----
-  //
-  // The sub-label always reads as "damage_taken / base", regardless of
-  // mode. In count-down, damage = base - value. In count-up, damage
-  // IS the value (the displayed counter itself is damage).
-  //
-  // Colour mirrors the main counter so the eye scans the two as one
-  // unit: white when healthy, yellow / red as defeat approaches.
-  if (!_baseLbl) return;
-
-  lv_obj_set_style_text_font(_baseLbl, LV_FONT_DEFAULT, 0);
-
-  const int damage = _countUp ? _value : (_baseLife - _value);
-  char buf[16];
-  if (damage == 0) {
-    snprintf(buf, sizeof(buf), "/%d", _baseLife);
-    lv_obj_set_style_text_color(_baseLbl, Theme::Game::ZeroDamage, 0);
-  } else {
-    snprintf(buf, sizeof(buf), "%d/%d", damage, _baseLife);
-    // Dim grey for the normal zone, escalate with the main counter.
-    lv_color_t subColor = defeated                             ? COLOR_MINUS
-                          : (distance <= LIFE_ZONE_RED_MAX)    ? COLOR_MINUS
-                          : (distance <= LIFE_ZONE_YELLOW_MAX) ? COLOR_BAT_YELLOW
-                                                               : COLOR_VALUE_GREY;
-    lv_obj_set_style_text_color(_baseLbl, subColor, 0);
-  }
-  lv_label_set_text(_baseLbl, buf);
-  updatePivot(_baseLbl);
-  // Sub-labels are horizontally centred under the counter in both modes
-  // now, so the position only depends on _lastOy. The re-align is still
-  // useful when the font/text changes the bounding box.
-  repositionSubLabels(_lastOy);
 
   // The counter's width changes with digit count (e.g. "9" -> "10" during
   // the reset animation). Re-anchor the delta to the new top-right corner.

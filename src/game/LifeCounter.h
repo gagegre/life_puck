@@ -179,7 +179,6 @@ private:
   // ---- LVGL handles -----------------------------------------------------
   lv_obj_t* _parent = nullptr;
   lv_obj_t* _label = nullptr;
-  lv_obj_t* _baseLbl = nullptr;
   lv_obj_t* _deltaLbl = nullptr;
   FlashManager* _flash = nullptr;
   bool _isP2 = false;
@@ -193,8 +192,7 @@ private:
   // ---- helpers ----------------------------------------------------------
   void applyFlip(lv_obj_t* obj);
   void updatePivot(lv_obj_t* obj);
-  void repositionMainLabel(int oy);
-  void repositionSubLabels(int oy);
+  void repositionLifeLabel(int oy);
   // Anchor the delta badge to the top-right corner of the counter, in
   // the player's reading frame. No-op while the badge is hidden.
   void repositionDelta();
