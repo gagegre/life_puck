@@ -15,7 +15,7 @@ void DefeatOverlay::begin(lv_obj_t* parent, lv_obj_t* shakeTarget) {
   lv_obj_set_size(_dim, SCREEN_W, SCREEN_H);
   lv_obj_center(_dim);
   lv_obj_set_style_bg_color(_dim, lv_color_hex(0x000000), 0);
-  lv_obj_set_style_bg_opa(_dim, 218, 0);  // similar to ModeToast
+  lv_obj_set_style_bg_opa(_dim, Theme::Defeat::DimOpa, 0);
   lv_obj_remove_flag(_dim, LV_OBJ_FLAG_SCROLLABLE);
   lv_obj_remove_flag(_dim, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_add_flag(_dim, LV_OBJ_FLAG_HIDDEN);
@@ -29,7 +29,7 @@ void DefeatOverlay::begin(lv_obj_t* parent, lv_obj_t* shakeTarget) {
   _panel = lv_obj_create(parent);
   lv_obj_remove_style_all(_panel);
   lv_obj_set_style_bg_color(_panel, COLOR_MINUS, 0);
-  lv_obj_set_style_bg_opa(_panel, 42, 0);
+  lv_obj_set_style_bg_opa(_panel, Theme::Defeat::PanelBgOpa, 0);
   lv_obj_set_style_border_width(_panel, 2, 0);
   lv_obj_set_style_border_color(_panel, COLOR_MINUS, 0);
   lv_obj_set_style_border_opa(_panel, LV_OPA_COVER, 0);
@@ -150,15 +150,15 @@ void DefeatOverlay::layoutForPlayer() {
   lv_obj_set_style_radius(_dim, LV_RADIUS_CIRCLE, 0);
 
   layoutPulse(_pulseOuter, SCREEN_W, SCREEN_H, LV_RADIUS_CIRCLE);
-  layoutPulse(_pulseMid, 194, 194, LV_RADIUS_CIRCLE);
-  layoutPulse(_pulseInner, 150, 150, LV_RADIUS_CIRCLE);
+  layoutPulse(_pulseMid, Theme::Defeat::PulseMidDiam, Theme::Defeat::PulseMidDiam, LV_RADIUS_CIRCLE);
+  layoutPulse(_pulseInner, Theme::Defeat::PulseInnerDiam, Theme::Defeat::PulseInnerDiam, LV_RADIUS_CIRCLE);
 
-  lv_obj_set_size(_panel, PANEL_DIAM, PANEL_DIAM);
+  lv_obj_set_size(_panel, Theme::Defeat::PanelDiam, Theme::Defeat::PanelDiam);
   lv_obj_set_style_radius(_panel, LV_RADIUS_CIRCLE, 0);
   lv_obj_align(_panel, LV_ALIGN_CENTER, 0, 0);
 
-  layoutTitleLabel(_titleShadow, 1, TITLE_OFFSET_Y);
-  layoutTitleLabel(_title, 0, TITLE_OFFSET_Y);
+  layoutTitleLabel(_titleShadow, 1, Theme::Defeat::TitleOffsetY);
+  layoutTitleLabel(_title, 0, Theme::Defeat::TitleOffsetY);
 }
 
 void DefeatOverlay::layoutPulse(lv_obj_t* obj, int w, int h, int radius) {
@@ -168,8 +168,8 @@ void DefeatOverlay::layoutPulse(lv_obj_t* obj, int w, int h, int radius) {
 }
 
 uint8_t DefeatOverlay::wave(uint32_t elapsed, uint32_t offset, uint8_t maxOpa) const {
-  const uint32_t phase = (elapsed + offset) % PULSE_MS;
-  const uint32_t half = PULSE_MS / 2;
+  const uint32_t phase = (elapsed + offset) % Theme::Defeat::PulseMs;
+  const uint32_t half = Theme::Defeat::PulseMs / 2;
   const uint32_t tri = phase < half ? phase : (PULSE_MS - phase);
   return (uint8_t)((maxOpa * tri) / half);
 }
@@ -182,12 +182,12 @@ void DefeatOverlay::applyPulse(lv_obj_t* obj, uint8_t bgOpa, uint8_t borderOpa) 
 void DefeatOverlay::updatePulse(uint32_t elapsed) {
   // Staggered offsets make the red wash appear to breathe from the
   // outside toward the life-number area.
-  applyPulse(_pulseOuter, wave(elapsed, 0, OPA_OUTER_MAX), wave(elapsed, 0, 120));
-  applyPulse(_pulseMid, wave(elapsed, PULSE_MS / 5, OPA_MID_MAX), wave(elapsed, PULSE_MS / 5, 80));
-  applyPulse(_pulseInner, wave(elapsed, (PULSE_MS * 2) / 5, OPA_INNER_MAX), wave(elapsed, (PULSE_MS * 2) / 5, 46));
+  applyPulse(_pulseOuter, wave(elapsed, 0, Theme::Defeat::PulseBgOuter), wave(elapsed, 0, Theme::Defeat::PulseBorderOuter));
+  applyPulse(_pulseMid, wave(elapsed, Theme::Defeat::PulseMs / 5, Theme::Defeat::PulseBgMid), wave(elapsed, Theme::Defeat::PulseMs / 5, Theme::Defeat::PulseBorderMid));
+  applyPulse(_pulseInner, wave(elapsed, (Theme::Defeat::PulseMs * 2) / 5, Theme::Defeat::PulseBgInner), wave(elapsed, (Theme::Defeat::PulseMs * 2) / 5, Theme::Defeat::PulseBorderInner));
 
   // The panel itself also breathes a little, but stays calmer than
   // the edge pulse so "BASE LOST" remains readable.
-  const uint8_t panelOpa = 34 + wave(elapsed, PULSE_MS / 3, 20);
+  const uint8_t panelOpa = Theme::Defeat::PanelBreathBase + wave(elapsed, Theme::Defeat::PulseMs / 3, Theme::Defeat::PanelBreathWave);
   lv_obj_set_style_bg_opa(_panel, panelOpa, 0);
 }

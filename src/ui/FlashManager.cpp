@@ -12,8 +12,8 @@ void FlashManager::begin(lv_obj_t* parent) {
   //                        sweep through 0/360.
   //   Left half   (- tap): sweeps 6 o'clock (90 deg) clockwise
   //                        through 9 o'clock to 12 o'clock (270 deg).
-  makeArc(_arc1PRight, COLOR_PLUS, 270, 90, parent, 48);
-  makeArc(_arc1PLeft, COLOR_MINUS, 90, 270, parent, 48);
+  makeArc(_arc1PRight, COLOR_PLUS, 270, 90, parent, Theme::Flash::Arc1PWidth);
+  makeArc(_arc1PLeft, COLOR_MINUS, 90, 270, parent, Theme::Flash::Arc1PWidth);
 
   // 2P across: one arc per screen quadrant, each clipped to its quadrant
   // so the flash only paints inside that corner. The angle ranges are
@@ -22,10 +22,10 @@ void FlashManager::begin(lv_obj_t* parent) {
   //   TR = upper-right quadrant : arc 270-360, clip top-right rect
   //   BL = lower-left  quadrant : arc  90-180, clip bottom-left rect
   //   BR = lower-right quadrant : arc   0- 90, clip bottom-right rect
-  makeClippedArc(_arcTL, COLOR_PLUS, 180, 270, parent, 34, 0, 0, CENTER_X, CENTER_Y);
-  makeClippedArc(_arcTR, COLOR_MINUS, 270, 360, parent, 34, CENTER_X, 0, CENTER_X, CENTER_Y);
-  makeClippedArc(_arcBL, COLOR_MINUS, 90, 180, parent, 34, 0, CENTER_Y, CENTER_X, CENTER_Y);
-  makeClippedArc(_arcBR, COLOR_PLUS, 0, 90, parent, 34, CENTER_X, CENTER_Y, CENTER_X, CENTER_Y);
+  makeClippedArc(_arcTL, COLOR_PLUS, 180, 270, parent, Theme::Flash::Arc2PWidth, 0, 0, CENTER_X, CENTER_Y);
+  makeClippedArc(_arcTR, COLOR_MINUS, 270, 360, parent, Theme::Flash::Arc2PWidth, CENTER_X, 0, CENTER_X, CENTER_Y);
+  makeClippedArc(_arcBL, COLOR_MINUS, 90, 180, parent, Theme::Flash::Arc2PWidth, 0, CENTER_Y, CENTER_X, CENTER_Y);
+  makeClippedArc(_arcBR, COLOR_PLUS, 0, 90, parent, Theme::Flash::Arc2PWidth, CENTER_X, CENTER_Y, CENTER_X, CENTER_Y);
 }
 
 void FlashManager::trigger(bool isPlus, bool isHealing, bool isP2, bool twoPlayerMode) {

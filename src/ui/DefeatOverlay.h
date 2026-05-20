@@ -23,13 +23,11 @@
 
 #pragma once
 
-#include "Config.h"
+#include "Theme.h"
 #include <lvgl.h>
 
 class DefeatOverlay {
 public:
-  static constexpr int PANEL_DIAM = 184;
-  static constexpr int TITLE_OFFSET_Y = 0;
 
   void begin(lv_obj_t* parent, lv_obj_t* shakeTarget);
 
@@ -50,11 +48,6 @@ public:
   void update(uint32_t now);
 
 private:
-  static constexpr uint32_t PULSE_MS = 1350;
-  static constexpr uint8_t OPA_OUTER_MAX = 86;
-  static constexpr uint8_t OPA_MID_MAX = 52;
-  static constexpr uint8_t OPA_INNER_MAX = 26;
-
   lv_obj_t* _parent = nullptr;
   lv_obj_t* _shakeTarget = nullptr;
   lv_obj_t* _dim = nullptr;

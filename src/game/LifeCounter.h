@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include "Config.h"
+#include "Theme.h"
 
 #include <lvgl.h>
 
@@ -33,24 +33,9 @@ class FlashManager;
 
 class LifeCounter {
 public:
-  // Vertical offset of the base sub-label below the counter (in the
-  // player's own reading frame). The delta badge is anchored directly to
-  // the counter's top-right corner via lv_obj_align_to and does NOT use
-  // these offsets.
-  //   LABEL_DY    : 1P (counter centred on the screen, plenty of room).
-  //   LABEL_DY_2P : 2P across, tighter so the base sub-label stays inside
-  //                 the round 240 px bezel.
-  static constexpr int LABEL_DY = 52;
-  static constexpr int LABEL_DY_2P = 46;
-
-  // 2P across: each counter sits this far above (P2) or below (P1) screen
-  // centre. Counters use life_font_72 (~52 px tall), so y = +/-40 leaves
-  // roughly 14 px between the top of the counter glyph and the horizontal
-  // divider at screen centre -- close enough to feel like a single dense
-  // scoreboard, but with breathing room. The delta badge no longer sits
-  // above the counter (it's now top-right of it), so this offset doesn't
-  // need to budget space for the badge clearing the divider.
-  static constexpr int Y_OFFSET_2P = 40;
+  // Sub-label offsets and counter position are in Theme::Game
+  // (SubLabelDy, SubLabelDy2P, CounterOy2P). The delta badge is anchored
+  // directly to the counter's top-right corner via lv_obj_align_to.
 
   static constexpr uint32_t BUNDLE_MS = 1500;
 

@@ -5,19 +5,19 @@
 #include "GameUi.h"
 #include "Battery.h"
 #include "FlashManager.h"
+#include "Theme.h"
 
 void GameUi::begin(lv_obj_t* parent, FlashManager* flash, Battery* battery) {
   _battery = battery;
 
   _divider = lv_obj_create(parent);
   lv_obj_remove_style_all(_divider);
-  // Horizontal divider for the across-each-other 2P layout: 120 px wide,
-  // 3 px tall, centred at screen midline. The two counters sit above
-  // (P2, rotated 180 deg) and below (P1) this line.
-  lv_obj_set_size(_divider, 120, 3);
-  lv_obj_set_pos(_divider, CENTER_X - 60, CENTER_Y - 1);
+  // Horizontal divider for the across-each-other 2P layout: centred at screen
+  // midline. The two counters sit above (P2, rotated 180 deg) and below (P1).
+  lv_obj_set_size(_divider, Theme::Divider::Width, Theme::Divider::Height);
+  lv_obj_set_pos(_divider, CENTER_X - Theme::Divider::Width / 2, CENTER_Y - 1);
   lv_obj_set_style_bg_color(_divider, COLOR_DIVIDER, 0);
-  lv_obj_set_style_bg_opa(_divider, LV_OPA_80, 0);
+  lv_obj_set_style_bg_opa(_divider, Theme::Divider::BgOpa, 0);
   lv_obj_set_style_radius(_divider, 1, 0);
   lv_obj_remove_flag(_divider, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_add_flag(_divider, LV_OBJ_FLAG_HIDDEN);

@@ -15,16 +15,11 @@
 
 #pragma once
 
-#include "Config.h"
+#include "Theme.h"
 #include <lvgl.h>
 
 class ModeToast {
 public:
-  static constexpr int CIRCLE_DIAM = 120;
-  static constexpr int ICON_OFFSET_Y = -22;  // upper half of circle
-  static constexpr int TITLE_OFFSET_Y = 22;  // lower half of circle
-  static constexpr int TITLE_MAX_W = 96;     // fits inside circle - padding
-
   void begin(lv_obj_t* parent);
 
   // Compose "title value" if both are non-empty. The label wraps to
@@ -39,8 +34,6 @@ public:
   void update();
 
 private:
-  static constexpr uint32_t TOAST_MS = 750;
-
   lv_obj_t* _parent = nullptr;
   lv_obj_t* _dim = nullptr;
   lv_obj_t* _circle = nullptr;

@@ -25,7 +25,7 @@ void LifeCounter::begin(lv_obj_t* parent, FlashManager* flash, bool isP2, bool f
   // ---- base / damage label ("8/30") ----
   _baseLbl = lv_label_create(parent);
   lv_obj_set_style_text_font(_baseLbl, LV_FONT_DEFAULT, 0);
-  lv_obj_set_style_text_color(_baseLbl, lv_color_hex(0x666666), 0);
+  lv_obj_set_style_text_color(_baseLbl, Theme::Game::SubLabel, 0);
   lv_label_set_text(_baseLbl, "");
   applyFlip(_baseLbl);
 
@@ -194,7 +194,7 @@ void LifeCounter::centerHalf(bool topSide) {
   // 2P across: P2 sits above the divider, P1 below. Sub-labels follow
   // along on the player's "below the counter" side (handled by _flipped
   // inside repositionSubLabels).
-  const int oy = topSide ? -Y_OFFSET_2P : +Y_OFFSET_2P;
+  const int oy = topSide ? -Theme::Game::CounterOy2P : +Theme::Game::CounterOy2P;
   _lastOy = oy;
   repositionMainLabel(oy);
   repositionSubLabels(oy);
@@ -280,7 +280,7 @@ void LifeCounter::updateDelta(uint32_t now) {
       // so a max-hit reads as "input rejected / disabled" rather than
       // being mistaken for actual damage (which would be red).
       // Restored on bump-end via refreshLabel() above.
-      lv_obj_set_style_text_color(_label, lv_color_hex(0x555555), 0);
+      lv_obj_set_style_text_color(_label, Theme::Game::BumpFeedback, 0);
     }
   }
 
@@ -355,7 +355,7 @@ void LifeCounter::repositionMainLabel(int oy) {
 // bounding box (which changes with digit count).
 void LifeCounter::repositionSubLabels(int oy) {
   const bool twoPAcross = (oy != 0);
-  const int dy = twoPAcross ? LABEL_DY_2P : LABEL_DY;
+  const int dy = twoPAcross ? Theme::Game::SubLabelDy2P : Theme::Game::SubLabelDy;
   const int baseDy = _flipped ? -dy : dy;
 
   if (_baseLbl) lv_obj_align(_baseLbl, LV_ALIGN_CENTER, 0, oy + baseDy);
@@ -502,7 +502,7 @@ void LifeCounter::refreshLabel() {
   char buf[16];
   if (damage == 0) {
     snprintf(buf, sizeof(buf), "/%d", _baseLife);
-    lv_obj_set_style_text_color(_baseLbl, lv_color_hex(0x444444), 0);
+    lv_obj_set_style_text_color(_baseLbl, Theme::Game::ZeroDamage, 0);
   } else {
     snprintf(buf, sizeof(buf), "%d/%d", damage, _baseLife);
     // Dim grey for the normal zone, escalate with the main counter.

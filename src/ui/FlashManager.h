@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include "Config.h"
+#include "Theme.h"
 
 #include <lvgl.h>
 
