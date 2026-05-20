@@ -46,11 +46,8 @@ void lvTickTask(void* arg);
 // gives the true panel state and is what keeps the radial menu from
 // flickering closed between gesture samples.
 //
-// readTouchFingerCountRaw() returns the raw finger count (0, 1, 2, ...)
-// or -1 on I2C error. readTouchFingerDownRaw() is the one-bit
-// convenience: 1 if any finger is on the panel, 0 if not, -1 on error.
-// Both share the same I2C read internally, so cost is one transaction.
-int readTouchFingerCountRaw();
+// readTouchFingerDownRaw() returns 1 if any finger is on the panel,
+// 0 if not, -1 on I2C error.
 int readTouchFingerDownRaw();
 
 }  // namespace Hardware

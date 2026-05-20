@@ -116,6 +116,11 @@ constexpr int SCREEN_H = 240;
 constexpr int CENTER_X = SCREEN_W / 2;
 constexpr int CENTER_Y = SCREEN_H / 2;
 constexpr int CENTER_TAP_HALF = 32;
+// Tighter circular radius for hold-to-open-menu detection. The full rectangular
+// dead-zone (CENTER_TAP_HALF=32) overlaps P2's natural tap zone in 2P mode;
+// only arming the hold timer within this smaller circle prevents rapid P2 game
+// taps from accidentally opening the radial menu. See App.cpp handleTouch().
+constexpr int CENTER_HOLD_HALF = 24;
 
 // ==============================================================
 // Game rules
@@ -188,18 +193,6 @@ constexpr uint32_t LOOP_DELAY_MS = 5;
 // from electrical jitter or library quirks.
 constexpr uint32_t TOUCH_COOLDOWN_MS = 40;
 constexpr uint32_t HOLD_RELEASE_GESTURE_BLOCK_MS = 180;
-
-// ---- Two-finger tap detection ----
-//
-// The CST816S reports finger count in the low nibble of register 0x02.
-// We poll that register continuously while a contact is in progress and
-// recognise a "two-finger tap" as: at some point during the contact the
-// raw count rose to >=2, the contact was longer than TWO_FINGER_HOLD_MIN_MS
-// (so a momentary glitch doesn't fire), shorter than TWO_FINGER_HOLD_MAX_MS
-// (so a deliberate two-finger hold doesn't fire), and no swipe/single-tap
-// gesture event was emitted during the contact.
-constexpr uint32_t TWO_FINGER_HOLD_MIN_MS = 60;
-constexpr uint32_t TWO_FINGER_HOLD_MAX_MS = 600;
 
 constexpr uint32_t CENTER_HOLD_MS = 450;         // soft timer before menu opens
 constexpr uint32_t RESET_HOLD_MS = 800;          // hold time to confirm a reset

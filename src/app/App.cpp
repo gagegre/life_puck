@@ -334,33 +334,6 @@ void restartFromDefeatOverlay() {
 void handleTouch() {
   const uint32_t now = Clock::now();
 
-  // ---- Two-finger detection ----
-  // Poll the raw finger count every tick. Aborts (cancelTwoFinger) cover
-  // every context in which the gesture is not appropriate: confirmation
-  // overlays, the modal defeat screen, and the radial menu. The actual
-  // single-finger gesture stream still flows below; if anything one-finger
-  // (tap, swipe) fires during the contact, pollTwoFinger() will not arm,
-  // because gesture-handling resets the contact via cancelTwoFinger() too.
-  const int fingerCount = Hardware::readTouchFingerCountRaw();
-  if (radialMenu.isOpen() || defeatOverlay.isActive() || resetPending.active() || undoPending.active()) {
-    touchRouter.cancelTwoFinger();
-  } else {
-    touchRouter.pollTwoFinger(fingerCount);
-    if (touchRouter.takeTwoFingerTap()) {
-      // Two-finger tap toggles 1P / 2P. Same shortcut as the radial menu's
-      // PLAYER_TOGGLE action -- routing through executeMenuAction() keeps
-      // the toast, reset animation, and persistence consistent with the
-      // menu path.
-      executeMenuAction(MenuAction::PLAYER_TOGGLE);
-      // The next gesture sample may be a stale single-tap from the multi-
-      // touch sequence; swallow it so it doesn't bump the life counter.
-      touchRouter.swallowUntilLift();
-      touchRouter.swallowNextGesture();
-      backlight.recordActivity();
-      return;
-    }
-  }
-
   // Open the menu when the soft hold timer elapses. Armed confirmation
   // states own the centre hold, so they must not accidentally open RadialMenu.
   if (!radialMenu.isOpen() && !resetPending.active() && !undoPending.active() &&
@@ -482,29 +455,26 @@ void handleTouch() {
     return;
   }
 
-  if (isCenter) {
-    touchRouter.trackCentreHold(now);
-    // Inside the centre dead-zone, an idle hold (gesture == 0) must NOT
-    // count as a game tap - the soft hold timer is the only thing that
-    // should react to it, by opening the radial menu after CENTER_HOLD_MS.
-    // Every actual gesture (tap, swipe in any direction) falls through
-    // and is processed exactly like a touch elsewhere on the screen.
-    if (gesture == 0) return;
-  } else {
-    touchRouter.resetHold();
+  if (isCenter && gesture == 0) {
+    // Only arm the hold timer inside a tight circular zone (radius CENTER_HOLD_HALF).
+    // The wider rectangular dead-zone (CENTER_TAP_HALF=32) overlaps P2's natural
+    // tap zone: x/y both near 88-120 in 2P. The CST816S can omit SINGLE_TAP for
+    // rapid repeated taps, leaving _hold.tracking armed. With the tighter circle,
+    // those outer taps call resetHold() and the menu stays closed.
+    const int dx = x - CENTER_X, dy = y - CENTER_Y;
+    if (dx * dx + dy * dy <= CENTER_HOLD_HALF * CENTER_HOLD_HALF)
+      touchRouter.trackCentreHold(now);
+    else
+      touchRouter.resetHold();
+    return;
   }
+  touchRouter.resetHold();
 
   // 1) Drop everything while we're still swallowing the finger that
   //    closed the radial menu (cleared automatically on confirmed lift).
   // 2) Cooldown is a small debounce between physically-distinct presses.
   if (touchRouter.isSwallowing()) return;
   if (!touchRouter.cooldownExpired()) return;
-
-  // Game input.
-  // A genuine single-finger gesture from the panel cancels any partial
-  // two-finger-tap accumulation so a swipe with a stray contact doesn't
-  // get mis-classified on release.
-  if (gesture != 0) touchRouter.cancelTwoFinger();
 
   // Across-each-other 2P layout: P2 occupies the top half (rotated 180),
   // P1 the bottom half. Player split is now along the Y axis, not X.

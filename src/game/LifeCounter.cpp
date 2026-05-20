@@ -110,6 +110,7 @@ bool LifeCounter::beginUndoPending() {
     lv_obj_set_style_bg_color(_deltaLbl, COLOR_MENU_ORANGE, 0);
     lv_obj_remove_flag(_deltaLbl, LV_OBJ_FLAG_HIDDEN);
     updatePivot(_deltaLbl);
+    lv_obj_update_layout(_label);
     repositionDelta();
   }
   refreshLabel();
@@ -180,6 +181,7 @@ void LifeCounter::tapped(int xScreen, int yScreen, bool twoPlayerMode) {
 void LifeCounter::centerFull() {
   _lastOy = 0;
   repositionLifeLabel(0);
+  lv_obj_update_layout(_label);
   repositionDelta();
 }
 
@@ -188,13 +190,14 @@ void LifeCounter::centerHalf(bool topSide) {
   const int oy = topSide ? -Theme::Game::CounterOy2P : +Theme::Game::CounterOy2P;
   _lastOy = oy;
   repositionLifeLabel(oy);
+  lv_obj_update_layout(_label);
   repositionDelta();
 }
 
 void LifeCounter::useFont(const lv_font_t* f) {
   lv_obj_set_style_text_font(_label, f, 0);
+  lv_obj_update_layout(_label);
   if (_flipped) {
-    lv_obj_update_layout(_label);
     lv_obj_set_style_transform_pivot_x(_label, lv_obj_get_width(_label) / 2, 0);
     lv_obj_set_style_transform_pivot_y(_label, lv_obj_get_height(_label) / 2, 0);
   }
@@ -352,8 +355,9 @@ void LifeCounter::repositionDelta() {
   if (!_deltaLbl || !_label) return;
   if (lv_obj_has_flag(_deltaLbl, LV_OBJ_FLAG_HIDDEN)) return;
 
-  // Both layouts must be current for align_to to compute correctly.
-  lv_obj_update_layout(_label);
+  // Callers guarantee _label layout is current before calling here.
+  // Only _deltaLbl needs a fresh pass (its text/visibility may have
+  // just changed, and it is smaller/cheaper than the rotated main label).
   lv_obj_update_layout(_deltaLbl);
 
   // _lastOy == 0 is the 1P layout (centerFull); any non-zero offset
@@ -381,8 +385,10 @@ void LifeCounter::showDelta(int accDelta) {
   // Badge colour follows "did this heal or damage us?", same flip as flash.
   const bool isHealing = _countUp ? (accDelta < 0) : (accDelta > 0);
   lv_obj_set_style_bg_color(_deltaLbl, isHealing ? COLOR_PLUS : COLOR_MINUS, 0);
-  updatePivot(_deltaLbl);
   lv_obj_remove_flag(_deltaLbl, LV_OBJ_FLAG_HIDDEN);
+  // Pivot is computed on the visible object so lv_obj_get_width returns
+  // correct dimensions (hidden objects may report stale or zero sizes).
+  updatePivot(_deltaLbl);
   // Anchor to counter's top-right corner. Must happen AFTER unhide so the
   // hidden-flag short-circuit in repositionDelta() doesn't skip the work.
   repositionDelta();
@@ -449,8 +455,16 @@ void LifeCounter::refreshLabel() {
   lv_obj_update_layout(_label);
   repositionLifeLabel(_lastOy);
   if (_flipped) {
-    lv_obj_set_style_transform_pivot_x(_label, lv_obj_get_width(_label) / 2, 0);
-    lv_obj_set_style_transform_pivot_y(_label, lv_obj_get_height(_label) / 2, 0);
+    // lv_obj_set_style_transform_pivot_* always marks the object dirty and
+    // triggers a full repaint, even when the value is unchanged. For a
+    // rotated 4bpp label the repaint is expensive. Only update when the
+    // digit count changes (i.e. the label width actually changed).
+    const int digits = (_value < 10 ? 1 : _value < 100 ? 2 : 3);
+    if (digits != _lastLabelDigits) {
+      _lastLabelDigits = digits;
+      lv_obj_set_style_transform_pivot_x(_label, lv_obj_get_width(_label) / 2, 0);
+      lv_obj_set_style_transform_pivot_y(_label, lv_obj_get_height(_label) / 2, 0);
+    }
   }
 
   // The counter's width changes with digit count (e.g. "9" -> "10" during

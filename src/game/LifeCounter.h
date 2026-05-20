@@ -187,6 +187,11 @@ private:
   // re-run the layout when the digit width changes (e.g. transition
   // between 1- and 2-digit values during the reset animation).
   int _lastOy = 0;
+  // Tracks the number of digits last time the label pivot was set.
+  // The pivot is the same for all values with the same digit count, so we
+  // skip the style-set (which always marks the object dirty/repaint) when
+  // the digit count has not changed. 0 = unset, forces update on first call.
+  int _lastLabelDigits = 0;
   DefeatCb _defeatCb = nullptr;
 
   // ---- helpers ----------------------------------------------------------
