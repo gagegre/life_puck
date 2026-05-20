@@ -1,14 +1,14 @@
 // FlashManager.h
 //
 // Six feedback arc sprites that briefly light up around the rim each
-// time a life change occurs. The arc's position (left vs right half,
+// time a life change occurs. The arc's position (top vs bottom half,
 // or quadrant in 2P) follows the tap location and the colour follows
 // the in-game meaning of the change (green = heal, red = damage), so
 // the flash reads as both a confirmation of the tap and a hint at
 // its effect.
 //
 // There are six arcs because we need a separate sprite for each of:
-//   1P: left / right half-circle arcs (right = + tap, left = - tap).
+//   1P: top / bottom half-circle arcs (top = + tap, bottom = - tap).
 //   2P across: one arc per screen quadrant (TL, TR, BL, BR), each
 //              clipped to its quadrant so the flash hugs only the
 //              tapped corner. Player association:
@@ -53,13 +53,13 @@ private:
   };
 
   bool _contracted = false;
-  // 1P half-circle arcs, named by their screen position. Right arc is
-  // the + tap target, left arc the - tap target.
-  lv_obj_t *_arc1PRight = nullptr, *_arc1PLeft = nullptr;
+  // 1P half-circle arcs, named by their screen position. Top arc is
+  // the + tap target, bottom arc the - tap target.
+  lv_obj_t *_arc1PTop = nullptr, *_arc1PBot = nullptr;
   // 2P-across quadrant arcs, named by their screen position.
   lv_obj_t *_arcTL = nullptr, *_arcTR = nullptr;
   lv_obj_t *_arcBL = nullptr, *_arcBR = nullptr;
-  Flash _f1PRight, _f1PLeft;
+  Flash _f1PTop, _f1PBot;
   Flash _fTL, _fTR, _fBL, _fBR;
 
   static void styleArc(lv_obj_t* arc, lv_color_t color, int s, int e, int width);

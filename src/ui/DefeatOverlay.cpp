@@ -170,7 +170,7 @@ void DefeatOverlay::layoutPulse(lv_obj_t* obj, int w, int h, int radius) {
 uint8_t DefeatOverlay::wave(uint32_t elapsed, uint32_t offset, uint8_t maxOpa) const {
   const uint32_t phase = (elapsed + offset) % Theme::Defeat::PulseMs;
   const uint32_t half = Theme::Defeat::PulseMs / 2;
-  const uint32_t tri = phase < half ? phase : (PULSE_MS - phase);
+  const uint32_t tri = phase < half ? phase : (Theme::Defeat::PulseMs - phase);
   return (uint8_t)((maxOpa * tri) / half);
 }
 

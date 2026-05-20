@@ -4,16 +4,15 @@
 #include "Clock.h"
 
 void FlashManager::begin(lv_obj_t* parent) {
-  // 1P half-circle arcs, rotated to the right/left rim to match the
-  // unified left/right tap axis.
-  //   Right half  (+ tap): sweeps 12 o'clock (270 deg) clockwise
-  //                        through 3 o'clock to 6 o'clock (90 deg).
+  // 1P half-circle arcs on the top/bottom rim to match the up/down tap axis.
+  //   Top half    (+ tap): sweeps 9 o'clock (180 deg) clockwise
+  //                        through 12 o'clock to 3 o'clock (0/360 deg).
   //                        LVGL handles end < start as a wrap-around
   //                        sweep through 0/360.
-  //   Left half   (- tap): sweeps 6 o'clock (90 deg) clockwise
-  //                        through 9 o'clock to 12 o'clock (270 deg).
-  makeArc(_arc1PRight, COLOR_PLUS, 270, 90, parent, Theme::Flash::Arc1PWidth);
-  makeArc(_arc1PLeft, COLOR_MINUS, 90, 270, parent, Theme::Flash::Arc1PWidth);
+  //   Bottom half (- tap): sweeps 3 o'clock (0 deg) clockwise
+  //                        through 6 o'clock to 9 o'clock (180 deg).
+  makeArc(_arc1PTop, COLOR_PLUS, 180, 0, parent, Theme::Flash::Arc1PWidth);
+  makeArc(_arc1PBot, COLOR_MINUS, 0, 180, parent, Theme::Flash::Arc1PWidth);
 
   // 2P across: one arc per screen quadrant, each clipped to its quadrant
   // so the flash only paints inside that corner. The angle ranges are
@@ -34,9 +33,9 @@ void FlashManager::trigger(bool isPlus, bool isHealing, bool isP2, bool twoPlaye
   Flash* flash = nullptr;
   lv_obj_t* arc = nullptr;
   if (!twoPlayerMode) {
-    // 1P: + tap = right rim, - tap = left rim.
-    flash = isPlus ? &_f1PRight : &_f1PLeft;
-    arc = isPlus ? _arc1PRight : _arc1PLeft;
+    // 1P: + tap = top rim, - tap = bottom rim.
+    flash = isPlus ? &_f1PTop : &_f1PBot;
+    arc = isPlus ? _arc1PTop : _arc1PBot;
   } else if (isP2) {
     // P2 sits at the top of the screen (rotated). Their + tap is screen
     // top-LEFT (their right hand), - tap is screen top-RIGHT.
@@ -54,8 +53,8 @@ void FlashManager::trigger(bool isPlus, bool isHealing, bool isP2, bool twoPlaye
 
 void FlashManager::update() {
   const uint32_t now = Clock::now();
-  fade(_f1PRight, _arc1PRight, now);
-  fade(_f1PLeft, _arc1PLeft, now);
+  fade(_f1PTop, _arc1PTop, now);
+  fade(_f1PBot, _arc1PBot, now);
   fade(_fTL, _arcTL, now);
   fade(_fTR, _arcTR, now);
   fade(_fBL, _arcBL, now);
@@ -66,15 +65,15 @@ void FlashManager::setContracted(bool contracted) {
   if (_contracted == contracted) return;
   _contracted = contracted;
 
-  if (!_arc1PRight) return;  // not yet initialised
+  if (!_arc1PTop) return;  // not yet initialised
 
   // When the battery ring is visible it occupies the outermost
   // BATTERY_ARC_WIDTH pixels of the rim. Inset the flash arcs by
   // that same amount so they don't paint over it.
   const int pad = contracted ? BATTERY_ARC_WIDTH : 0;
 
-  lv_obj_set_style_pad_all(_arc1PRight, pad, 0);
-  lv_obj_set_style_pad_all(_arc1PLeft, pad, 0);
+  lv_obj_set_style_pad_all(_arc1PTop, pad, 0);
+  lv_obj_set_style_pad_all(_arc1PBot, pad, 0);
   lv_obj_set_style_pad_all(_arcTL, pad, 0);
   lv_obj_set_style_pad_all(_arcTR, pad, 0);
   lv_obj_set_style_pad_all(_arcBL, pad, 0);

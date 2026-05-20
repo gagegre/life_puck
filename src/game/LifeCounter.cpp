@@ -78,7 +78,7 @@ void LifeCounter::change(int delta, bool twoPlayerMode) {
   showDelta(_accDelta);
 
   // Flash arc:
-  //   position = the player's "+/-" rim zone (1P: right/left half;
+  //   position = the player's "+/-" rim zone (1P: top/bottom half;
   //              2P across: each player's right/left quadrant).
   //              Always follows delta sign.
   //   colour   = mode-dependent meaning: heal = green, damage = red.
@@ -170,15 +170,16 @@ void LifeCounter::reset(bool countUpMode) {
 }
 
 void LifeCounter::tapped(int xScreen, int yScreen, bool twoPlayerMode) {
-  // Unified left/right tap axis across 1P and 2P-across so the mental
-  // model is the same in both modes: each player's own right hand = +1,
-  // left hand = -1. In 2P, P2 is rotated 180 deg, so P2's own right
-  // hand reaches toward screen-LEFT -- the _flipped branch (set only
-  // for P2) inverts the sign so the rule holds in P2's frame too.
-  (void)yScreen;
-  const bool rightOfScreen = (xScreen >= CENTER_X);
-  const bool isPlus = _flipped ? !rightOfScreen : rightOfScreen;
-  change(isPlus ? +1 : -1, twoPlayerMode);
+  if (!twoPlayerMode) {
+    // 1P: top half = +1, bottom half = -1.
+    change(yScreen < CENTER_Y ? +1 : -1, twoPlayerMode);
+  } else {
+    // 2P across: each player's own right hand = +1, left hand = -1.
+    // P2 is rotated 180 deg so their right hand is screen-left; _flipped inverts.
+    const bool rightOfScreen = (xScreen >= CENTER_X);
+    const bool isPlus = _flipped ? !rightOfScreen : rightOfScreen;
+    change(isPlus ? +1 : -1, twoPlayerMode);
+  }
 }
 
 // ---- layout ---------------------------------------------------------------

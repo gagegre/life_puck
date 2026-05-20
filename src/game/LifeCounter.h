@@ -113,10 +113,9 @@ public:
   }
 
   // Tap: routes the touch to a +/-1 change based on the current layout.
-  // The axis is left/right in both 1P and 2P-across, so the rule
-  // "each player's right hand = +1, left hand = -1" holds in both
-  // modes. In 2P, P2 is rotated 180 deg, so P2's right hand maps to
-  // screen-left -- the flip is handled internally.
+  // 1P: top half = +1, bottom half = -1.
+  // 2P across: each player's right hand = +1, left hand = -1.
+  //   P2 is rotated 180 deg so their right hand is screen-left; handled internally.
   void tapped(int xScreen, int yScreen, bool twoPlayerMode);
 
   // ---- layout ------------------------------------------------------------

@@ -513,38 +513,59 @@ void handleTouch() {
 
   switch (gesture) {
     case Gesture::SWIPE_LEFT:
-      // 2P across: left/right is the +/- axis (matching the tap zones).
-      //   P1 (bottom):     screen-LEFT  = P1's left hand     = -5
-      //   P2 (top/flipped): screen-LEFT = P2's right hand    = +5
-      // In 1P the screen frame is the player frame: left swipe = -5.
-      target.change(isP2Side ? +5 : -5, game.twoPlayer);
-      touchRouter.swallowUntilLift();
+      if (game.twoPlayer) {
+        // 2P across: left/right is the +/- axis (matching the tap zones).
+        //   P1 (bottom):      screen-LEFT = P1's left hand  = -5
+        //   P2 (top/flipped): screen-LEFT = P2's right hand = +5
+        target.change(isP2Side ? +5 : -5, game.twoPlayer);
+        touchRouter.swallowUntilLift();
+      } else {
+        // 1P: left swipe arms undo.
+        if (target.beginUndoPending()) {
+          undoPending.arm(0);
+          undoPendingOverlay.show(undoPending.player, game.twoPlayer);
+          touchRouter.swallowUntilLift();
+        }
+      }
       break;
 
     case Gesture::SWIPE_RIGHT:
-      target.change(isP2Side ? -5 : +5, game.twoPlayer);
-      touchRouter.swallowUntilLift();
+      if (game.twoPlayer) {
+        target.change(isP2Side ? -5 : +5, game.twoPlayer);
+        touchRouter.swallowUntilLift();
+      }
+      // 1P: right swipe is no-op.
       break;
 
     case Gesture::SWIPE_UP:
-    case Gesture::SWIPE_DOWN: {
-      // Undo arm has moved to the up/down axis since left/right is now
-      // ±5. Each player triggers undo by swiping "back" in their own
-      // frame, i.e. toward their own edge of the screen, away from the
-      // divider:
-      //   P1 (bottom):     SWIPE_DOWN (toward screen bottom = P1's back)
-      //   P2 (top/flipped): SWIPE_UP   (toward screen top    = P2's back)
-      // The confirm step is a centre hold; the swipe only arms undo.
-      const bool isTrigger =
-          (!isP2Side && gesture == Gesture::SWIPE_DOWN) || (isP2Side && gesture == Gesture::SWIPE_UP);
-      if (isTrigger && target.beginUndoPending()) {
-        undoPending.arm(isP2Side ? 1 : 0);
-        undoPendingOverlay.show(undoPending.player, game.twoPlayer);
-        // Prevent held undo-swipe samples from immediately cancelling
-        // the pending state and causing visible flicker.
+      if (game.twoPlayer) {
+        // 2P: P2 (top/flipped) triggers undo by swiping toward screen top (their back).
+        if (isP2Side && target.beginUndoPending()) {
+          undoPending.arm(1);
+          undoPendingOverlay.show(undoPending.player, game.twoPlayer);
+          touchRouter.swallowUntilLift();
+        }
+      } else {
+        // 1P: up = +5.
+        target.change(+5, game.twoPlayer);
         touchRouter.swallowUntilLift();
       }
-    } break;
+      break;
+
+    case Gesture::SWIPE_DOWN:
+      if (game.twoPlayer) {
+        // 2P: P1 (bottom) triggers undo by swiping toward screen bottom (their back).
+        if (!isP2Side && target.beginUndoPending()) {
+          undoPending.arm(0);
+          undoPendingOverlay.show(undoPending.player, game.twoPlayer);
+          touchRouter.swallowUntilLift();
+        }
+      } else {
+        // 1P: down = -5.
+        target.change(-5, game.twoPlayer);
+        touchRouter.swallowUntilLift();
+      }
+      break;
 
     case Gesture::SINGLE_TAP:
       target.tapped(x, y, game.twoPlayer);
