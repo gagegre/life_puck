@@ -30,7 +30,7 @@ static const lv_color_t ZeroDamage  = lv_color_hex(0x444444);  // sub-label when
 // Counter layout offsets (px). The delta badge is anchored separately.
 static constexpr int SubLabelDy   = 52;  // 1P: sub-label below counter centre
 static constexpr int SubLabelDy2P = 46;  // 2P: tighter to stay inside the bezel
-static constexpr int CounterOy2P  = 40;  // 2P: counter offset from screen centre
+static constexpr int CounterOy2P  = 55;  // 2P: counter offset from screen centre
 }  // namespace Game
 
 namespace Menu {

@@ -10,17 +10,15 @@
 
 // ---- lifecycle ------------------------------------------------------------
 
-void LifeCounter::begin(lv_obj_t* parent, FlashManager* flash, bool isP2, bool flipped) {
+void LifeCounter::begin(lv_obj_t* parent, FlashManager* flash, bool isP2) {
   _parent = parent;
   _flash = flash;
   _isP2 = isP2;
-  _flipped = flipped;
 
   // ---- main life label ----
   _label = lv_label_create(parent);
   lv_obj_set_style_text_color(_label, COLOR_FG, 0);
   lv_obj_set_style_text_font(_label, &montserrat_124, 0);
-  applyFlip(_label);
 
   // ---- delta badge pill ----
   _deltaLbl = lv_label_create(parent);
@@ -33,10 +31,23 @@ void LifeCounter::begin(lv_obj_t* parent, FlashManager* flash, bool isP2, bool f
   lv_obj_set_style_pad_ver(_deltaLbl, 3, 0);
   lv_label_set_text(_deltaLbl, "");
   lv_obj_add_flag(_deltaLbl, LV_OBJ_FLAG_HIDDEN);
-  applyFlip(_deltaLbl);
 
   refreshLabel();
   centerFull();
+
+  // P2 is seated across the table (rotated 180°). Apply the rotation ONCE here
+  // with a percentage pivot so LVGL always rotates around each object's own
+  // centre regardless of content width. We never touch the pivot again, which
+  // eliminates the per-tap lv_obj_set_style_transform_pivot_* calls that
+  // marked the label dirty on every change and caused the WDT freeze.
+  if (_isP2) {
+    lv_obj_set_style_transform_rotation(_label, 1800, 0);
+    lv_obj_set_style_transform_pivot_x(_label, lv_pct(50), 0);
+    lv_obj_set_style_transform_pivot_y(_label, lv_pct(50), 0);
+    lv_obj_set_style_transform_rotation(_deltaLbl, 1800, 0);
+    lv_obj_set_style_transform_pivot_x(_deltaLbl, lv_pct(50), 0);
+    lv_obj_set_style_transform_pivot_y(_deltaLbl, lv_pct(50), 0);
+  }
 }
 
 // ---- mutation -------------------------------------------------------------
@@ -109,7 +120,6 @@ bool LifeCounter::beginUndoPending() {
     lv_label_set_text(_deltaLbl, buf);
     lv_obj_set_style_bg_color(_deltaLbl, COLOR_MENU_ORANGE, 0);
     lv_obj_remove_flag(_deltaLbl, LV_OBJ_FLAG_HIDDEN);
-    updatePivot(_deltaLbl);
     lv_obj_update_layout(_label);
     repositionDelta();
   }
@@ -169,9 +179,9 @@ void LifeCounter::tapped(int xScreen, int yScreen, bool twoPlayerMode) {
     change(yScreen < CENTER_Y ? +1 : -1, twoPlayerMode);
   } else {
     // 2P across: each player's own right hand = +1, left hand = -1.
-    // P2 is rotated 180 deg so their right hand is screen-left; _flipped inverts.
+    // P2 lives in a 180° container so their right hand is screen-left.
     const bool rightOfScreen = (xScreen >= CENTER_X);
-    const bool isPlus = _flipped ? !rightOfScreen : rightOfScreen;
+    const bool isPlus = _isP2 ? !rightOfScreen : rightOfScreen;
     change(isPlus ? +1 : -1, twoPlayerMode);
   }
 }
@@ -197,12 +207,6 @@ void LifeCounter::centerHalf(bool topSide) {
 void LifeCounter::useFont(const lv_font_t* f) {
   lv_obj_set_style_text_font(_label, f, 0);
   lv_obj_update_layout(_label);
-  if (_flipped) {
-    lv_obj_set_style_transform_pivot_x(_label, lv_obj_get_width(_label) / 2, 0);
-    lv_obj_set_style_transform_pivot_y(_label, lv_obj_get_height(_label) / 2, 0);
-  }
-  // Counter's bounding box just changed; keep the badge stuck to its
-  // (new) top-right corner. No-op while the badge is hidden.
   repositionDelta();
 }
 
@@ -255,10 +259,7 @@ void LifeCounter::updateDelta(uint32_t now) {
       const float angle = t * 2.0f * 2.0f * PI;  // 2 oscillations
       const int dx = (int)lroundf(sinf(angle) * LIFE_BUMP_SHAKE_AMP * decay);
 
-      // LVGL can leave a grey redraw artifact with a 180 degree rotated label
-      // when translate_x is animated. P2 is already flipped, so keep the
-      // rejected-input feedback as opacity/grey only.
-      lv_obj_set_style_translate_x(_label, _flipped ? 0 : dx, 0);
+      lv_obj_set_style_translate_x(_label, dx, 0);
 
       // Subtle opacity dip -- peaks at mid-duration.
       const uint32_t half = LIFE_BUMP_MS / 2;
@@ -305,21 +306,6 @@ void LifeCounter::updateDelta(uint32_t now) {
 
 // ---- private --------------------------------------------------------------
 
-void LifeCounter::applyFlip(lv_obj_t* obj) {
-  if (!_flipped || !obj) return;
-  lv_obj_set_style_transform_rotation(obj, 1800, 0);
-  lv_obj_update_layout(obj);
-  lv_obj_set_style_transform_pivot_x(obj, lv_obj_get_width(obj) / 2, 0);
-  lv_obj_set_style_transform_pivot_y(obj, lv_obj_get_height(obj) / 2, 0);
-}
-
-void LifeCounter::updatePivot(lv_obj_t* obj) {
-  if (!_flipped || !obj) return;
-  lv_obj_update_layout(obj);
-  lv_obj_set_style_transform_pivot_x(obj, lv_obj_get_width(obj) / 2, 0);
-  lv_obj_set_style_transform_pivot_y(obj, lv_obj_get_height(obj) / 2, 0);
-}
-
 // Position the main life number.
 //
 //   1P:        centred on the screen (oy == 0).
@@ -331,47 +317,17 @@ void LifeCounter::repositionLifeLabel(int oy) {
   lv_obj_align(_label, LV_ALIGN_CENTER, 0, oy);
 }
 
-// Anchor the delta badge in the PLAYER's reading frame.
-//
-//   1P              : top-centred above the counter (over the digit).
-//   2P P1 (bottom)  : screen top-right corner of the counter.
-//   2P P2 (top)     : screen bottom-left corner -- which P2 perceives
-//                     as top-right after the 180 deg label rotation.
-//
-// 2P uses a corner anchor (rather than top-mid) because the badge would
-// otherwise sit on or near the divider where the other player's badge
-// might also land; offsetting it to the player's outer corner keeps the
-// two players' deltas visually separated.
-//
-// lv_obj_align_to is computed on the unrotated bounding box, so the
-// rotation transform on _deltaLbl doesn't change the math; it only
-// affects how the glyphs render. The small offsets push the badge
-// slightly past the edge so it reads as "hanging off" the counter.
-//
-// Called whenever the counter's geometry might have changed (digit
-// width on refreshLabel, font change, layout shift between 1P/2P) AND
-// whenever the badge is shown.
+// Anchor the delta badge above the counter in screen coordinates.
+// Both players use TOP_MID: for P1 (bottom half) this is physically above
+// the counter; for P2 (top half, label rotated 180°) TOP_MID lands between
+// the counter and P2's bezel, keeping the badge inside P2's half.
+// The badge itself is also rotated 180° so P2 reads it correctly.
 void LifeCounter::repositionDelta() {
   if (!_deltaLbl || !_label) return;
   if (lv_obj_has_flag(_deltaLbl, LV_OBJ_FLAG_HIDDEN)) return;
 
-  // Callers guarantee _label layout is current before calling here.
-  // Only _deltaLbl needs a fresh pass (its text/visibility may have
-  // just changed, and it is smaller/cheaper than the rotated main label).
   lv_obj_update_layout(_deltaLbl);
-
-  // _lastOy == 0 is the 1P layout (centerFull); any non-zero offset
-  // means 2P-across (centerHalf).
-  const bool twoPAcross = (_lastOy != 0);
-  if (!twoPAcross) {
-    lv_obj_align_to(_deltaLbl, _label, LV_ALIGN_OUT_TOP_MID, 0, -2);
-    return;
-  }
-
-  const lv_align_t align = _flipped ? LV_ALIGN_OUT_LEFT_BOTTOM : LV_ALIGN_OUT_RIGHT_TOP;
-  const int xOfs = _flipped ? -2 : 2;
-  const int yOfs = _flipped ? 2 : -2;
-  lv_obj_align_to(_deltaLbl, _label, align, xOfs, yOfs);
+  lv_obj_align_to(_deltaLbl, _label, LV_ALIGN_OUT_TOP_MID, 0, -2);
 }
 
 void LifeCounter::showDelta(int accDelta) {
@@ -386,10 +342,7 @@ void LifeCounter::showDelta(int accDelta) {
   const bool isHealing = _countUp ? (accDelta < 0) : (accDelta > 0);
   lv_obj_set_style_bg_color(_deltaLbl, isHealing ? COLOR_PLUS : COLOR_MINUS, 0);
   lv_obj_remove_flag(_deltaLbl, LV_OBJ_FLAG_HIDDEN);
-  // Pivot is computed on the visible object so lv_obj_get_width returns
-  // correct dimensions (hidden objects may report stale or zero sizes).
-  updatePivot(_deltaLbl);
-  // Anchor to counter's top-right corner. Must happen AFTER unhide so the
+  // Anchor must happen AFTER unhide so the
   // hidden-flag short-circuit in repositionDelta() doesn't skip the work.
   repositionDelta();
 }
@@ -441,7 +394,6 @@ void LifeCounter::refreshLabel() {
   if (!_label) return;
 
   const int distance = distanceToDefeat();
-  const bool defeated = (distance == 0);
 
   // ---- main counter ----
   lv_color_t mainColor = _undoPending ? COLOR_VALUE_GREY : zoneColor(distance);
@@ -454,23 +406,9 @@ void LifeCounter::refreshLabel() {
   // dimensions.
   lv_obj_update_layout(_label);
   repositionLifeLabel(_lastOy);
-  if (_flipped) {
-    // lv_obj_set_style_transform_pivot_* always marks the object dirty and
-    // triggers a full repaint, even when the value is unchanged. For a
-    // rotated 4bpp label the repaint is expensive. Only update when the
-    // digit count changes (i.e. the label width actually changed).
-    const int digits = (_value < 10 ? 1 : _value < 100 ? 2 : 3);
-    if (digits != _lastLabelDigits) {
-      _lastLabelDigits = digits;
-      lv_obj_set_style_transform_pivot_x(_label, lv_obj_get_width(_label) / 2, 0);
-      lv_obj_set_style_transform_pivot_y(_label, lv_obj_get_height(_label) / 2, 0);
-    }
-  }
-
-  // The counter's width changes with digit count (e.g. "9" -> "10" during
-  // the reset animation). Re-anchor the delta to the new top-right corner.
-  // No-op while the badge is hidden.
-  repositionDelta();
+  // Badge position is fixated: set once at showDelta / layout change time,
+  // not re-anchored on every value change. The TOP_MID / BOTTOM_MID anchor
+  // stays centred regardless of digit-count width changes.
 }
 
 // ---- undo history ---------------------------------------------------------

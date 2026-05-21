@@ -13,7 +13,7 @@ void GameUi::begin(lv_obj_t* parent, FlashManager* flash, Battery* battery) {
   _divider = lv_obj_create(parent);
   lv_obj_remove_style_all(_divider);
   // Horizontal divider for the across-each-other 2P layout: centred at screen
-  // midline. The two counters sit above (P2, rotated 180 deg) and below (P1).
+  // midline. The two counters sit above (P2) and below (P1).
   lv_obj_set_size(_divider, Theme::Divider::Width, Theme::Divider::Height);
   lv_obj_set_pos(_divider, CENTER_X - Theme::Divider::Width / 2, CENTER_Y - 1);
   lv_obj_set_style_bg_color(_divider, COLOR_DIVIDER, 0);
@@ -22,8 +22,8 @@ void GameUi::begin(lv_obj_t* parent, FlashManager* flash, Battery* battery) {
   lv_obj_remove_flag(_divider, LV_OBJ_FLAG_CLICKABLE);
   lv_obj_add_flag(_divider, LV_OBJ_FLAG_HIDDEN);
 
-  _p1.begin(parent, flash, /*isP2=*/false, /*flipped=*/false);
-  _p2.begin(parent, flash, /*isP2=*/true, /*flipped=*/true);
+  _p1.begin(parent, flash, /*isP2=*/false);
+  _p2.begin(parent, flash, /*isP2=*/true);
   _p2.setVisible(false);
 }
 

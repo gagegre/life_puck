@@ -47,9 +47,10 @@ public:
     _defeatCb = cb;
   }
 
-  // Build LVGL labels and apply orientation. `flipped` is true for the
-  // P2 counter in 2P mode (rendered upside-down for the opponent).
-  void begin(lv_obj_t* parent, FlashManager* flash, bool isP2 = false, bool flipped = false);
+  // Build LVGL labels and apply orientation.
+  // isP2 inverts the tap +/- axis (P2 sits across the table so their
+  // right hand is the screen's left side).
+  void begin(lv_obj_t* parent, FlashManager* flash, bool isP2 = false);
 
   // ---- mutation ---------------------------------------------------------
 
@@ -182,31 +183,20 @@ private:
   lv_obj_t* _deltaLbl = nullptr;
   FlashManager* _flash = nullptr;
   bool _isP2 = false;
-  bool _flipped = false;
-  // 0 in 1P; +/-Y_OFFSET_2P in 2P-across. Stored so refreshLabel() can
-  // re-run the layout when the digit width changes (e.g. transition
-  // between 1- and 2-digit values during the reset animation).
+  // 0 in 1P; non-zero in 2P-across (used to reposition on font/value changes).
   int _lastOy = 0;
-  // Tracks the number of digits last time the label pivot was set.
-  // The pivot is the same for all values with the same digit count, so we
-  // skip the style-set (which always marks the object dirty/repaint) when
-  // the digit count has not changed. 0 = unset, forces update on first call.
-  int _lastLabelDigits = 0;
   DefeatCb _defeatCb = nullptr;
 
   // ---- helpers ----------------------------------------------------------
-  void applyFlip(lv_obj_t* obj);
-  void updatePivot(lv_obj_t* obj);
   void repositionLifeLabel(int oy);
-  // Anchor the delta badge to the top-right corner of the counter, in
-  // the player's reading frame. No-op while the badge is hidden.
+  // Anchor the delta badge above the counter. No-op while the badge is hidden.
   void repositionDelta();
+  void refreshLabel();
   void showDelta(int accDelta);
   void hideDelta();
   void startBump();
   lv_color_t zoneColor(int distance) const;
   void updatePulse(uint32_t now);
-  void refreshLabel();
 
   // ---- undo helpers -----------------------------------------------------
   void pushUndo(int valueBefore);
