@@ -50,16 +50,13 @@ void DefeatOverlay::begin(lv_obj_t* parent, lv_obj_t* shakeTarget) {
   setTitleText(UiText::BASE_LOST);
 }
 
-void DefeatOverlay::show(int player, bool twoPlayer) {
+void DefeatOverlay::show() {
   _active = true;
-  _twoPlayer = twoPlayer;
   _startedAt = Clock::now();
-  _player = player;
 
-  _twoPlayer ? setTitleText((_player == 0) ? UiText::BASE_LOST_P1 : UiText::BASE_LOST_P2)
-             : setTitleText(UiText::BASE_LOST);
+  setTitleText(UiText::BASE_LOST);
 
-  layoutForPlayer();
+  layoutCentered();
 
   lv_obj_remove_flag(_dim, LV_OBJ_FLAG_HIDDEN);
   lv_obj_remove_flag(_pulseOuter, LV_OBJ_FLAG_HIDDEN);
@@ -69,7 +66,6 @@ void DefeatOverlay::show(int player, bool twoPlayer) {
   lv_obj_remove_flag(_titleShadow, LV_OBJ_FLAG_HIDDEN);
   lv_obj_remove_flag(_title, LV_OBJ_FLAG_HIDDEN);
 
-  // Keep overlay above life labels/badges, same modal priority as ModeToast.
   lv_obj_move_foreground(_dim);
   lv_obj_move_foreground(_pulseOuter);
   lv_obj_move_foreground(_pulseMid);
@@ -138,10 +134,9 @@ void DefeatOverlay::buildPulseLayer(lv_obj_t*& obj) {
   lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
 }
 
-void DefeatOverlay::layoutForPlayer() {
-  // The defeated state is intentionally global and centered in both
-  // 1P and 2P. The counters are hidden behind it by GameUi, so there
-  // is no side-specific stacking or divider clutter.
+void DefeatOverlay::layoutCentered() {
+  // Centered, screen-filling overlay. The counter is hidden behind it by
+  // GameUi, so there is no side-specific stacking or divider clutter.
   _cx = CENTER_X;
   _cy = CENTER_Y;
 

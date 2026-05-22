@@ -25,7 +25,11 @@
 
 LV_FONT_DECLARE(font_awesome_icons);
 LV_FONT_DECLARE(montserrat_124);
-LV_FONT_DECLARE(montserrat_80);
+
+// "OF XY" base-life label uses the built-in LVGL SemiBold size. 48 px sits
+// in the requested 38..48 band and its rendered width for "OF 30" is close
+// to "30" at montserrat_124, which is the visual goal of the spec.
+#define BASE_LABEL_FONT (&lv_font_montserrat_48)
 
 // ==============================================================
 // Font Awesome glyphs used in the UI. UTF-8 byte sequences for the
@@ -33,7 +37,6 @@ LV_FONT_DECLARE(montserrat_80);
 // ==============================================================
 
 #define FA_ICON_SINGLE "\xEE\x80\xBC"                  // 0xe03c
-#define FA_ICON_VERSUS "\xEE\x80\xBD"                  // 0xe03d
 #define FA_ICON_BATTERY_EMPTY "\xEF\x89\x84"           // 0xf244
 #define FA_ICON_BATTERY_LOW "\xEE\x82\xB1"             // 0xe0b1
 #define FA_ICON_BATTERY_QUARTER "\xEF\x89\x83"         // 0xf243
@@ -62,9 +65,6 @@ LV_FONT_DECLARE(montserrat_80);
 // ==============================================================
 
 namespace UiText {
-static constexpr const char* PLAYERS = "PLAYERS";
-static constexpr const char* SINGLE = "SINGLE";
-static constexpr const char* VERSUS = "VERSUS";
 static constexpr const char* COUNT = "COUNT";
 static constexpr const char* DOWN = "DOWN";
 static constexpr const char* UP = "UP";
@@ -86,13 +86,10 @@ static constexpr const char* BATTERY_SHOW = "SHOW";
 static constexpr const char* BATTERY_PERCENT_ON = "% ON";
 
 static constexpr const char* BASE_LIFE_FMT_1P = "BASE LIFE %d";
-static constexpr const char* BASE_LIFE_FMT_2P = "BASE LIFE %d | %d";
 static constexpr const char* BATTERY_FMT = "BATTERY %s";
 static constexpr const char* BRIGHTNESS_FMT = "BRIGHTNESS %d%%";
 
 static constexpr const char* BASE_LOST = "BASE LOST";
-static constexpr const char* BASE_LOST_P1 = "P1\nBASE LOST";
-static constexpr const char* BASE_LOST_P2 = "P2\nBASE LOST";
 }  // namespace UiText
 
 // ==============================================================
@@ -116,10 +113,10 @@ constexpr int SCREEN_H = 240;
 constexpr int CENTER_X = SCREEN_W / 2;
 constexpr int CENTER_Y = SCREEN_H / 2;
 constexpr int CENTER_TAP_HALF = 32;
-// Tighter circular radius for hold-to-open-menu detection. The full rectangular
-// dead-zone (CENTER_TAP_HALF=32) overlaps P2's natural tap zone in 2P mode;
-// only arming the hold timer within this smaller circle prevents rapid P2 game
-// taps from accidentally opening the radial menu. See App.cpp handleTouch().
+// Tighter circular radius for hold-to-open-menu detection. Only arming the
+// hold timer within this smaller circle prevents edge-of-centre rests from
+// accidentally opening the radial menu, and keeps the centre-hold trigger
+// distinct from the outside-hold trigger that reveals OF XY.
 constexpr int CENTER_HOLD_HALF = 24;
 
 // ==============================================================
@@ -196,6 +193,12 @@ constexpr uint32_t HOLD_RELEASE_GESTURE_BLOCK_MS = 180;
 
 constexpr uint32_t CENTER_HOLD_MS = 450;         // soft timer before menu opens
 constexpr uint32_t RESET_HOLD_MS = 800;          // hold time to confirm a reset
+// Outside-center long-hold reveals the "OF XY" base-life label under the
+// main counter. Long enough to never collide with a normal tap/swipe.
+constexpr uint32_t OUTSIDE_HOLD_MS = 600;
+// How long the OF XY label remains visible after a successful reveal if no
+// other input arrives. Any tap/swipe/menu open hides it immediately too.
+constexpr uint32_t BASE_REVEAL_TIMEOUT_MS = 2500;
 constexpr uint32_t MENU_RELEASE_GRACE_MS = 450;  // fallback when raw I2C touch read fails
 constexpr uint32_t MENU_DWELL_REVEAL_MS = 600;
 constexpr uint32_t MENU_DWELL_BACK_MS = 600;
@@ -334,15 +337,12 @@ static const lv_color_t COLOR_DIVIDER = lv_color_hex(0x888888);
 
 enum class MenuAction : uint8_t {
   NONE,
-  PLAYER_TOGGLE,
   COUNT_DIRECTION,
   BATTERY,
   BRIGHTNESS,
   SLEEP,
   BASE_SELECTOR,
   // Hidden option-actions used by the bound choice view.
-  SET_1P,
-  SET_2P,
   COUNT_DOWN,
   COUNT_UP,
   SLEEP_OFF,
@@ -350,7 +350,7 @@ enum class MenuAction : uint8_t {
   BRIGHTNESS_CYCLE,
   BASE_SELECTOR_COMMIT
 };
-constexpr uint8_t MENU_ACTION_COUNT = 6;  // top-level segments
+constexpr uint8_t MENU_ACTION_COUNT = 5;  // top-level segments
 
 enum class BatteryMode : uint8_t {
   HIDE = 0,
@@ -413,12 +413,9 @@ enum class SleepReason : uint8_t {
 // Defined here so PowerManager and the .ino setup() can both see the layout.
 struct PersistentState {
   int life = STARTING_LIFE;
-  int life2 = STARTING_LIFE;
   bool countUp = false;
-  bool twoPlayer = false;
   bool touchLocked = false;
-  int baseLife1 = 30;
-  int baseLife2 = 30;
+  int baseLife = 30;
   // Reason for the most recent deep sleep. Used by the boot path to decide
   // whether to replay the startup intro (yes on manual sleep, no on idle).
   SleepReason lastSleepReason = SleepReason::None;

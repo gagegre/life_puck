@@ -26,8 +26,6 @@
 
 const char* iconForAction(MenuAction a, const GameState& g) {
   switch (a) {
-    case MenuAction::PLAYER_TOGGLE:
-      return g.twoPlayer ? FA_ICON_VERSUS : FA_ICON_SINGLE;
     case MenuAction::COUNT_DIRECTION:
       return g.countUp ? FA_ICON_COUNT_UP : FA_ICON_COUNT_DOWN;
     case MenuAction::BATTERY:
@@ -36,10 +34,6 @@ const char* iconForAction(MenuAction a, const GameState& g) {
       return FA_ICON_BRIGHTNESS;
     case MenuAction::SLEEP:
       return FA_ICON_POWER;
-    case MenuAction::SET_1P:
-      return FA_ICON_SINGLE;
-    case MenuAction::SET_2P:
-      return FA_ICON_VERSUS;
     case MenuAction::COUNT_DOWN:
       return FA_ICON_COUNT_DOWN;
     case MenuAction::COUNT_UP:
@@ -246,14 +240,12 @@ public:
   static constexpr float TOP_DEG = 270.0f;  // 12 o'clock in LVGL frame
 
   void build() override {
-    static const MenuAction kActions[MENU_ACTION_COUNT] = {MenuAction::PLAYER_TOGGLE,
-                                                           MenuAction::COUNT_DIRECTION,
+    static const MenuAction kActions[MENU_ACTION_COUNT] = {MenuAction::COUNT_DIRECTION,
                                                            MenuAction::BATTERY,
                                                            MenuAction::BRIGHTNESS,
                                                            MenuAction::SLEEP,
                                                            MenuAction::BASE_SELECTOR};
     static const lv_color_t kColors[MENU_ACTION_COUNT] = {
-        Theme::Menu::Players,
         Theme::Menu::Count,
         Theme::Menu::Battery,
         Theme::Menu::Brightness,
@@ -388,7 +380,6 @@ public:
     clearHoverState();
 
     switch (action) {
-      case MenuAction::PLAYER_TOGGLE:
       case MenuAction::COUNT_DIRECTION:
         _host->fireAction(action);
         break;
@@ -461,7 +452,6 @@ private:
 
   uint32_t dwellMsFor(MenuAction a) const {
     switch (a) {
-      case MenuAction::PLAYER_TOGGLE:
       case MenuAction::COUNT_DIRECTION:
       case MenuAction::BATTERY:
       case MenuAction::BRIGHTNESS:
@@ -547,11 +537,6 @@ private:
     char buf[16];
 
     switch (_hovered) {
-      case MenuAction::PLAYER_TOGGLE:
-        c.set(iconForAction(MenuAction::PLAYER_TOGGLE, g),
-              UiText::PLAYERS,
-              g.twoPlayer ? UiText::VERSUS : UiText::SINGLE);
-        break;
       case MenuAction::COUNT_DIRECTION:
         c.set(iconForAction(MenuAction::COUNT_DIRECTION, g), UiText::COUNT, g.countUp ? UiText::UP : UiText::DOWN);
         break;
@@ -571,10 +556,7 @@ private:
         break;
       case MenuAction::BASE_SELECTOR: {
         char baseBuf[16];
-        if (g.twoPlayer)
-          snprintf(baseBuf, sizeof(baseBuf), "%d | %d", g.baseLife1, g.baseLife2);
-        else
-          snprintf(baseBuf, sizeof(baseBuf), "%d", g.baseLife1);
+        snprintf(baseBuf, sizeof(baseBuf), "%d", g.baseLife);
         c.set(FA_ICON_BASE_LIFE, UiText::BASE_LIFE, baseBuf);
       } break;
       case MenuAction::NONE:
@@ -588,7 +570,7 @@ private:
 };
 
 // ==============================================================
-// ChoiceView -- bound choice sub-radial (1P vs 2P, COUNT UP vs DOWN,
+// ChoiceView -- bound choice sub-radial (COUNT UP vs DOWN,
 // SLEEP confirm)
 // ==============================================================
 
@@ -669,11 +651,7 @@ private:
     }
     _count = 0;
 
-    if (parent == MenuAction::PLAYER_TOGGLE) {
-      _count = 2;
-      addSeg(0, FA_ICON_SINGLE, MenuAction::SET_1P, COLOR_MENU_BLUE);
-      addSeg(1, FA_ICON_VERSUS, MenuAction::SET_2P, COLOR_MENU_BLUE);
-    } else if (parent == MenuAction::COUNT_DIRECTION) {
+    if (parent == MenuAction::COUNT_DIRECTION) {
       _count = 2;
       addSeg(0, FA_ICON_COUNT_DOWN, MenuAction::COUNT_DOWN, COLOR_MENU_ORANGE);
       addSeg(1, FA_ICON_COUNT_UP, MenuAction::COUNT_UP, COLOR_MENU_ORANGE);
@@ -741,9 +719,6 @@ private:
 
     if (idx < 0) {
       switch (target) {
-        case MenuAction::PLAYER_TOGGLE:
-          c.set(iconForAction(MenuAction::PLAYER_TOGGLE, g), UiText::PLAYERS, "");
-          break;
         case MenuAction::COUNT_DIRECTION:
           c.set(iconForAction(MenuAction::COUNT_DIRECTION, g), UiText::COUNT, "");
           break;
@@ -760,9 +735,7 @@ private:
     }
 
     const MenuAction v = _values[idx];
-    if (target == MenuAction::PLAYER_TOGGLE) {
-      c.set(iconForAction(v, g), UiText::PLAYERS, (v == MenuAction::SET_2P) ? UiText::VERSUS : UiText::SINGLE);
-    } else if (target == MenuAction::COUNT_DIRECTION) {
+    if (target == MenuAction::COUNT_DIRECTION) {
       c.set(iconForAction(v, g), UiText::COUNT, (v == MenuAction::COUNT_UP) ? UiText::UP : UiText::DOWN);
     } else if (target == MenuAction::SLEEP) {
       c.set(FA_ICON_POWER, UiText::SLEEP, UiText::BATTERY_HIDE);
@@ -1081,12 +1054,8 @@ private:
 // BaseSelectorView -- granular arc selector for base max life (24..35).
 //
 // Layout
-//   1P  full-circle arc (like BrightnessView) - 12 tick marks
-//   2P  two 120 deg half-arcs with 60 deg gap at top & bottom:
-//         P1  right side  300 deg -> 60 deg  (clockwise through 0 deg)
-//         P2  left  side  120 deg -> 240 deg
-//   Each arc shows 12 tick dots; the selected value appears
-//   large in the centre label.
+//   Full-circle arc (like BrightnessView) - 12 tick marks
+//   The selected value appears large in the centre label.
 // ==============================================================
 
 class BaseSelectorView : public MenuView {
@@ -1097,15 +1066,9 @@ public:
   static constexpr int VAL_MAX = 35;
   static constexpr int VAL_COUNT = VAL_MAX - VAL_MIN + 1;  // 12
 
-  // 1P arc
+  // 1P full-circle arc.
   static constexpr float FULL_ROT = 270.0f;
   static constexpr float FULL_SPAN = 360.0f;
-
-  // 2P arcs (each 120 deg, 60 deg gap at top & bottom).
-  static constexpr float P1_ROT = 300.0f;
-  static constexpr float P1_SPAN = 120.0f;
-  static constexpr float P2_ROT = 120.0f;
-  static constexpr float P2_SPAN = 120.0f;
 
   static constexpr int TICK_SIZE_NORM = 8;
   static constexpr int TICK_SIZE_SEL = 13;
@@ -1113,51 +1076,25 @@ public:
   void build() override {
     lv_obj_t* ov = _host->overlay();
 
-    _arc1P = makeArc(ov);
-    lv_arc_set_rotation(_arc1P, (int)FULL_ROT);
-    lv_arc_set_bg_angles(_arc1P, 0, 360);
+    _arc = makeArc(ov);
+    lv_arc_set_rotation(_arc, (int)FULL_ROT);
+    lv_arc_set_bg_angles(_arc, 0, 360);
 
-    _arcP1 = makeArc(ov);
-    lv_arc_set_rotation(_arcP1, (int)P1_ROT);
-    lv_arc_set_bg_angles(_arcP1, 0, (int)P1_SPAN);
-
-    _arcP2 = makeArc(ov);
-    lv_arc_set_rotation(_arcP2, (int)P2_ROT);
-    lv_arc_set_bg_angles(_arcP2, 0, (int)P2_SPAN);
-
-    buildTicks(_ticks1P, VAL_COUNT, FULL_ROT, FULL_SPAN);
-    buildTicks(_ticksP1, VAL_COUNT, P1_ROT, P1_SPAN);
-    buildTicks(_ticksP2, VAL_COUNT, P2_ROT, P2_SPAN);
+    buildTicks(_ticks, VAL_COUNT, FULL_ROT, FULL_SPAN);
 
     hideAll();
   }
 
   void onEnter() override {
-    const bool twoP = _host->game().twoPlayer;
-    _selP1 = _host->game().baseLife1;
-    _selP2 = _host->game().baseLife2;
-    _origP1 = _selP1;
-    _origP2 = _selP2;
+    _sel = _host->game().baseLife;
+    _orig = _sel;
     _hasChanged = false;
     _liftedAt = 0;
 
-    if (twoP) {
-      lv_obj_add_flag(_arc1P, LV_OBJ_FLAG_HIDDEN);
-      showTicks(_ticks1P, false);
-      lv_obj_remove_flag(_arcP1, LV_OBJ_FLAG_HIDDEN);
-      lv_obj_remove_flag(_arcP2, LV_OBJ_FLAG_HIDDEN);
-      showTicks(_ticksP1, true);
-      showTicks(_ticksP2, true);
-    } else {
-      lv_obj_remove_flag(_arc1P, LV_OBJ_FLAG_HIDDEN);
-      showTicks(_ticks1P, true);
-      lv_obj_add_flag(_arcP1, LV_OBJ_FLAG_HIDDEN);
-      lv_obj_add_flag(_arcP2, LV_OBJ_FLAG_HIDDEN);
-      showTicks(_ticksP1, false);
-      showTicks(_ticksP2, false);
-    }
+    lv_obj_remove_flag(_arc, LV_OBJ_FLAG_HIDDEN);
+    showTicks(_ticks, true);
 
-    updateArcs();
+    updateArc();
     updateTicks();
     renderCentre();
   }
@@ -1170,38 +1107,23 @@ public:
     (void)x;
     (void)y;
     if (!h.inRing) return;
-    const bool twoP = _host->game().twoPlayer;
     const float deg = h.deg;
 
-    if (!twoP) {
-      float rel = normalizeDeg(deg - FULL_ROT);
-      int idx = constrain((int)lroundf(rel / FULL_SPAN * (VAL_COUNT - 1)), 0, VAL_COUNT - 1);
-      _selP1 = VAL_MIN + idx;
-    } else {
-      float relP1 = normalizeDeg(deg - P1_ROT);
-      if (relP1 <= P1_SPAN) {
-        int idx = constrain((int)lroundf(relP1 / P1_SPAN * (VAL_COUNT - 1)), 0, VAL_COUNT - 1);
-        _selP1 = VAL_MIN + idx;
-      }
-      float relP2 = normalizeDeg(deg - P2_ROT);
-      if (relP2 <= P2_SPAN) {
-        int idx = constrain((int)lroundf(relP2 / P2_SPAN * (VAL_COUNT - 1)), 0, VAL_COUNT - 1);
-        _selP2 = VAL_MIN + idx;
-      }
-    }
+    float rel = normalizeDeg(deg - FULL_ROT);
+    int idx = constrain((int)lroundf(rel / FULL_SPAN * (VAL_COUNT - 1)), 0, VAL_COUNT - 1);
+    _sel = VAL_MIN + idx;
 
-    updateArcs();
+    updateArc();
     updateTicks();
     renderCentre();
 
-    if (_selP1 != _origP1 || _selP2 != _origP2) _hasChanged = true;
+    if (_sel != _orig) _hasChanged = true;
     _liftedAt = 0;
   }
 
   void onCentreTouch() override {
-    // Explicit confirm: commit values and return to top ring.
-    _host->game().baseLife1 = _selP1;
-    _host->game().baseLife2 = _selP2;
+    // Explicit confirm: commit value and return to top ring.
+    _host->game().baseLife = _sel;
     _host->fireAction(MenuAction::BASE_SELECTOR_COMMIT);
     _host->requestView(0);  // VIEW_TOP
     _hasChanged = false;
@@ -1220,8 +1142,7 @@ public:
     if ((now - _liftedAt) < MENU_AUTO_COMMIT_IDLE_MS) return;
     _hasChanged = false;
     _liftedAt = 0;
-    _host->game().baseLife1 = _selP1;
-    _host->game().baseLife2 = _selP2;
+    _host->game().baseLife = _sel;
     _host->fireAction(MenuAction::BASE_SELECTOR_COMMIT);
     _host->requestClose();
   }
@@ -1230,16 +1151,10 @@ public:
   }
 
 private:
-  lv_obj_t* _arc1P = nullptr;
-  lv_obj_t* _arcP1 = nullptr;
-  lv_obj_t* _arcP2 = nullptr;
-  lv_obj_t* _ticks1P[VAL_COUNT] = {};
-  lv_obj_t* _ticksP1[VAL_COUNT] = {};
-  lv_obj_t* _ticksP2[VAL_COUNT] = {};
-  int _selP1 = 30;
-  int _selP2 = 30;
-  int _origP1 = 30;
-  int _origP2 = 30;
+  lv_obj_t* _arc = nullptr;
+  lv_obj_t* _ticks[VAL_COUNT] = {};
+  int _sel = 30;
+  int _orig = 30;
   bool _hasChanged = false;
   uint32_t _liftedAt = 0;
 
@@ -1297,22 +1212,12 @@ private:
   }
 
   void hideAll() {
-    lv_obj_add_flag(_arc1P, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(_arcP1, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(_arcP2, LV_OBJ_FLAG_HIDDEN);
-    showTicks(_ticks1P, false);
-    showTicks(_ticksP1, false);
-    showTicks(_ticksP2, false);
+    lv_obj_add_flag(_arc, LV_OBJ_FLAG_HIDDEN);
+    showTicks(_ticks, false);
   }
 
-  void updateArcs() {
-    const bool twoP = _host->game().twoPlayer;
-    if (!twoP) {
-      lv_arc_set_value(_arc1P, _selP1 - VAL_MIN);
-    } else {
-      lv_arc_set_value(_arcP1, _selP1 - VAL_MIN);
-      lv_arc_set_value(_arcP2, _selP2 - VAL_MIN);
-    }
+  void updateArc() {
+    lv_arc_set_value(_arc, _sel - VAL_MIN);
   }
 
   void updateTick(lv_obj_t** arr, float rotDeg, float spanDeg, int selectedVal) {
@@ -1334,22 +1239,13 @@ private:
   }
 
   void updateTicks() {
-    const bool twoP = _host->game().twoPlayer;
-    if (!twoP) {
-      updateTick(_ticks1P, FULL_ROT, FULL_SPAN, _selP1);
-    } else {
-      updateTick(_ticksP1, P1_ROT, P1_SPAN, _selP1);
-      updateTick(_ticksP2, P2_ROT, P2_SPAN, _selP2);
-    }
+    updateTick(_ticks, FULL_ROT, FULL_SPAN, _sel);
   }
 
   void renderCentre() {
     CentreLabel& c = _host->centre();
     char buf[16];
-    if (_host->game().twoPlayer)
-      snprintf(buf, sizeof(buf), "%d | %d", _selP1, _selP2);
-    else
-      snprintf(buf, sizeof(buf), "%d", _selP1);
+    snprintf(buf, sizeof(buf), "%d", _sel);
     c.set(FA_ICON_BASE_LIFE, UiText::BASE_LIFE, buf);
   }
 };
@@ -1408,7 +1304,7 @@ void RadialMenu::close() {
   _centerTouchActive = false;
   _ignoreOpeningTouch = false;
   lv_obj_add_flag(_overlay, LV_OBJ_FLAG_HIDDEN);
-  if (_gameUi && _gameState) _gameUi->showAfterMenu(_gameState->twoPlayer);
+  if (_gameUi) _gameUi->showAfterMenu();
 }
 
 void RadialMenu::handleTouch(int x, int y) {

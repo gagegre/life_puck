@@ -10,9 +10,7 @@ void UndoPendingOverlay::begin(lv_obj_t* parent) {
   _dwell.begin(parent, OuterRingDwell::Style::Undo);
 }
 
-void UndoPendingOverlay::show(int player, bool twoPlayerMode) {
-  (void)player;
-  (void)twoPlayerMode;
+void UndoPendingOverlay::show() {
   _dwell.show();
 }
 

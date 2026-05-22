@@ -1,13 +1,14 @@
 // LifeCounter.h
 //
-// One player's life value and its on-screen rendering. Tracks the
-// counter plus the secondary "damage/base" sub-label and a delta badge,
-// and owns four overlapping animations:
+// The 1P life value and its on-screen rendering. Tracks the counter plus the
+// delta badge plus the "OF XY" base-life reveal label, and owns the small
+// set of animations that the counter can play:
 //
 //   1. Bundle / delta-badge fade (shows e.g. "+3" after rapid taps)
 //   2. Bump / rejected-input wobble when a tap is clamped by 0 or base
 //   3. Reset celebration (animate to target value instead of jumping)
 //   4. Low-HP ambient opacity pulse when close to defeat
+//   5. OF XY base-life reveal slide (counter shifts up, base label slides in)
 //
 // Two display modes are unified via the "distance to defeat" abstraction
 // so colour, pulse and defeat decisions are identical regardless of
@@ -33,48 +34,35 @@ class FlashManager;
 
 class LifeCounter {
 public:
-  // Sub-label offsets and counter position are in Theme::Game
-  // (SubLabelDy, SubLabelDy2P, CounterOy2P). The delta badge is anchored
-  // directly to the counter's top-right corner via lv_obj_align_to.
-
   static constexpr uint32_t BUNDLE_MS = 1500;
 
   // Fires when this counter just transitioned to distance == 0.
-  // The signature is a plain function pointer (not std::function) to
-  // keep allocation cost zero on a 320 KB-RAM target.
-  using DefeatCb = void (*)(int /*playerIdx 0 or 1*/);
+  using DefeatCb = void (*)();
   void setDefeatCallback(DefeatCb cb) {
     _defeatCb = cb;
   }
 
-  // Build LVGL labels and apply orientation.
-  // isP2 inverts the tap +/- axis (P2 sits across the table so their
-  // right hand is the screen's left side).
-  void begin(lv_obj_t* parent, FlashManager* flash, bool isP2 = false);
+  void begin(lv_obj_t* parent, FlashManager* flash);
 
   // ---- mutation ---------------------------------------------------------
 
   // Apply a signed delta. Clamps at [LIFE_MIN, _baseLife]. Fires the
   // flash arc and (if the player just reached distance 0) the defeat
   // callback. Out-of-bounds taps trigger the rejected-input bump.
-  void change(int delta, bool twoPlayerMode);
+  void change(int delta);
 
-  // Undo the most recent bundle, restoring the value to its pre-bundle
-  // state. Returns false if the undo history is empty.
+  // Undo the most recent bundle. Returns false if history is empty.
   bool undo();
   bool canUndo() const {
     return _undoCount > 0;
   }
 
-  // Two-step swipe-undo: first swipe puts the counter into the
-  // "pending" visual state (dimmed + orange undo glyph); a second
-  // confirming swipe calls undo(). Any other action clears.
+  // Two-step swipe-undo helpers.
   bool beginUndoPending();
   void clearUndoPending();
 
-  // Direct value setter. Bypasses bundle/undo bookkeeping -- intended
-  // for wake-from-deep-sleep restore. Clears the undo history because
-  // the new value is not a gameplay action you'd want to walk back.
+  // Direct value setter (e.g. wake-from-deep-sleep restore). Clears undo
+  // history because the new value isn't a gameplay action.
   void setValue(int v);
 
   void setBaseLife(int base);
@@ -87,18 +75,7 @@ public:
     return _countUp;
   }
 
-  // Reset to the starting value for the current mode.
-  //
-  // The animation ALWAYS plays the FULL 0..MAX sweep, regardless of the
-  // current _value:
-  //   count-down: animate 0 -> baseLife    (fill up to ready)
-  //   count-up:   animate baseLife -> 0    (clear damage to ready)
-  //
-  // We never short-circuit when _value already equals the target -- that
-  // would make a shake-reset at full HP, or a mode switch with matching
-  // values, silently do nothing. The dramatic count is the player's main
-  // confirmation that the reset happened, so it must always be visible.
-  // Clears the undo history -- a fresh game is not "undoable".
+  // Reset to the starting value for the current mode (full animated sweep).
   void reset(bool countUpMode);
 
   int getValue() const {
@@ -113,29 +90,22 @@ public:
     return distanceToDefeat() == 0;
   }
 
-  // Tap: routes the touch to a +/-1 change based on the current layout.
-  // 1P: top half = +1, bottom half = -1.
-  // 2P across: each player's right hand = +1, left hand = -1.
-  //   P2 is rotated 180 deg so their right hand is screen-left; handled internally.
-  void tapped(int xScreen, int yScreen, bool twoPlayerMode);
+  // Tap: 1P only -- top half = +1, bottom half = -1.
+  void tapped(int yScreen);
 
-  // ---- layout ------------------------------------------------------------
+  // ---- OF XY base-life reveal -------------------------------------------
+  void showBaseReveal();
+  void hideBaseReveal();
+  bool isBaseRevealActive() const {
+    return _baseRevealActive;
+  }
 
-  // 1P layout: counter centred on the screen.
-  void centerFull();
-  // 2P across layout: counter aligned to its half of the screen, above
-  // (P2) or below (P1) the horizontal centre divider.
-  void centerHalf(bool topSide);
-
+  // ---- layout / visibility ----------------------------------------------
   void useFont(const lv_font_t* f);
-
   void setVisible(bool visible);
 
-  // ---- per-loop tick -----------------------------------------------------
-  //
-  // Drives the four animations. Call once per loop iteration with the
-  // current Clock::now() timestamp.
-  void updateDelta(uint32_t now);
+  // Per-loop tick. Drives all animations + the OF XY auto-hide timer.
+  void update(uint32_t now);
 
   lv_obj_t* lvObj() const {
     return _label;
@@ -148,20 +118,11 @@ private:
   bool _countUp = false;
 
   // ---- undo history -----------------------------------------------------
-  //
-  // Ring buffer of pre-bundle values. `_undoHead` is the next-write
-  // position; `_undoCount` is the current size (0..UNDO_HISTORY_DEPTH).
-  // When full, the oldest entry is silently dropped.
   int _undoBefore[UNDO_HISTORY_DEPTH] = {};
   uint8_t _undoHead = 0;
   uint8_t _undoCount = 0;
 
   // ---- bundle / delta state ---------------------------------------------
-  //
-  // While a bundle is open and within BUNDLE_MS of the last tap, repeated
-  // taps accumulate into the same delta badge and share a single undo
-  // snapshot. After BUNDLE_MS without activity the badge fades but the
-  // snapshot stays on the undo stack so the user can still walk it back.
   int _accDelta = 0;
   bool _bundleOpen = false;
   uint32_t _bundleLastAt = 0;
@@ -176,24 +137,30 @@ private:
   int _resetFrom = 0;
   int _resetTo = 0;
   bool _pulsing = false;
+  // Last digit-count we ran update_layout for. We only re-layout when
+  // the width may have changed (digit count delta), not on every tap.
+  int _lastDigitCount = 0;
+
+  // ---- OF XY base reveal ------------------------------------------------
+  bool _baseRevealActive = false;
+  uint32_t _baseRevealAt = 0;
 
   // ---- LVGL handles -----------------------------------------------------
   lv_obj_t* _parent = nullptr;
   lv_obj_t* _label = nullptr;
   lv_obj_t* _deltaLbl = nullptr;
+  lv_obj_t* _baseLbl = nullptr;
   FlashManager* _flash = nullptr;
-  bool _isP2 = false;
-  // 0 in 1P; non-zero in 2P-across (used to reposition on font/value changes).
-  int _lastOy = 0;
   DefeatCb _defeatCb = nullptr;
 
   // ---- helpers ----------------------------------------------------------
-  void repositionLifeLabel(int oy);
-  // Anchor the delta badge above the counter. No-op while the badge is hidden.
+  void repositionLifeLabel();
   void repositionDelta();
+  void repositionBaseLabel();
   void refreshLabel();
   void showDelta(int accDelta);
   void hideDelta();
+  void refreshBaseLabelText();
   void startBump();
   lv_color_t zoneColor(int distance) const;
   void updatePulse(uint32_t now);

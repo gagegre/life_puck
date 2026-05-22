@@ -28,13 +28,15 @@ static const lv_color_t BumpFeedback = lv_color_hex(0x555555);  // rejected-inpu
 static const lv_color_t ZeroDamage  = lv_color_hex(0x444444);  // sub-label when no damage taken
 
 // Counter layout offsets (px). The delta badge is anchored separately.
-static constexpr int SubLabelDy   = 52;  // 1P: sub-label below counter centre
-static constexpr int SubLabelDy2P = 46;  // 2P: tighter to stay inside the bezel
-static constexpr int CounterOy2P  = 55;  // 2P: counter offset from screen centre
+static constexpr int SubLabelDy   = 52;  // sub-label below counter centre
+
+// "OF XY" base-life reveal animation: the main counter shifts up and the
+// base label slides into the space below it. Subtle but unmistakable.
+static constexpr int BaseRevealCounterDy = -16;  // counter moves up by this
+static constexpr int BaseRevealLabelDy   = 56;   // base label sits this far below centre
 }  // namespace Game
 
 namespace Menu {
-static const lv_color_t Players = COLOR_MENU_BLUE;
 static const lv_color_t Count = COLOR_MENU_ORANGE;
 static const lv_color_t Battery = COLOR_MENU_PINK;
 static const lv_color_t Brightness = COLOR_MENU_YELLOW;
@@ -56,17 +58,9 @@ static const lv_color_t SkipArc    = lv_color_hex(0xE8F6FF);
 static const lv_color_t SkipTrack  = lv_color_hex(0x2C5F82);
 }  // namespace Confirm
 
-namespace Divider {
-// 2P horizontal centre divider geometry.
-static constexpr int Width  = 120;
-static constexpr int Height = 3;
-static constexpr uint8_t BgOpa = LV_OPA_80;
-}  // namespace Divider
-
 namespace Flash {
 // Arc stroke widths for the rim flash feedback.
 static constexpr int Arc1PWidth = 48;  // 1P half-circle arcs
-static constexpr int Arc2PWidth = 34;  // 2P quadrant arcs
 }  // namespace Flash
 
 namespace Toast {

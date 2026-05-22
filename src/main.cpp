@@ -72,28 +72,14 @@ static void buildGameUiForBoot(bool wokeFromDeepSleep, bool animateInitialReset 
   createGameUI();
   battery.forceRefresh();
 
-  // Restore life values now that the labels exist.
+  // Restore life value now that the label exists.
   if (wokeFromDeepSleep) {
-    gameUi.restoreValues(rtcState.life, rtcState.life2);
-
-    // Re-apply the final 2P/1P layout after restoring text. The restored
-    // value can change the label width, which matters for the rotated P2
-    // transform and its alignment.
-    if (game.twoPlayer)
-      gameUi.enterTwoPlayer();
-    else
-      gameUi.exitTwoPlayer();
+    gameUi.restoreValue(rtcState.life);
   } else if (animateInitialReset) {
-    gameUi.resetBoth(game.countUp);
+    gameUi.reset(game.countUp);
   } else {
-    const int p1Start = resetStartValueForIntro(game.countUp, game.baseLife1);
-    const int p2Start = resetStartValueForIntro(game.countUp, game.baseLife2);
-    gameUi.restoreValues(p1Start, p2Start);
-
-    if (game.twoPlayer)
-      gameUi.enterTwoPlayer();
-    else
-      gameUi.exitTwoPlayer();
+    const int startVal = resetStartValueForIntro(game.countUp, game.baseLife);
+    gameUi.restoreValue(startVal);
   }
 
   // Build the radial overlay only after the main game UI exists, so any
@@ -119,14 +105,8 @@ void prepareGameUiForIntroReveal(void* userData) {
   // Do NOT start the reset animation yet; it begins after the intro is gone.
   buildGameUiForBoot(gWokeFromDeepSleep, false);
 
-  const int p1Start = resetStartValueForIntro(game.countUp, game.baseLife1);
-  const int p2Start = resetStartValueForIntro(game.countUp, game.baseLife2);
-  gameUi.restoreValues(p1Start, p2Start);
-
-  if (game.twoPlayer)
-    gameUi.enterTwoPlayer();
-  else
-    gameUi.exitTwoPlayer();
+  const int startVal = resetStartValueForIntro(game.countUp, game.baseLife);
+  gameUi.restoreValue(startVal);
 
   gPendingPostIntroReset = true;
 
@@ -147,7 +127,7 @@ void onStartupIntroFinished(void* userData) {
 
     // Crosshair is gone now. Start the normal reset/count animation here,
     // same path/speed as other UI reset transitions.
-    gameUi.resetBoth(game.countUp);
+    gameUi.reset(game.countUp);
   }
 
   lv_obj_invalidate(lv_screen_active());
@@ -231,16 +211,13 @@ void setup() {
   // Restore RTC state if waking from deep sleep, otherwise load NVS base-life.
   if (wokeFromDeepSleep) {
     game.countUp = rtcState.countUp;
-    game.twoPlayer = rtcState.twoPlayer;
     game.touchLocked = rtcState.touchLocked;
-    game.baseLife1 = rtcState.baseLife1;
-    game.baseLife2 = rtcState.baseLife2;
+    game.baseLife = rtcState.baseLife;
     // Drop the touch that woke us; one-shot flag avoids the
     // millis()-near-zero underflow that the previous version had.
     touchRouter.requestSwallowFirstTouch();
   } else {
-    game.baseLife1 = nvm.getBaseLife1();
-    game.baseLife2 = nvm.getBaseLife2();
+    game.baseLife = nvm.getBaseLife();
   }
 
   // ---- LVGL bring-up ----
@@ -371,16 +348,14 @@ void loop() {
   // same loop iteration instead of next-tick.
   drainPendingMenuAction();
   modeToast.update();
-  if (!radialMenu.isOpen()) gameUi.updateDeltas(Clock::now());
+  if (!radialMenu.isOpen()) gameUi.update(Clock::now());
 
   // ---- Defeat overlay ----
-  // Cancel early if the player has been healed out of the defeat state
-  // (distance back > 0). Otherwise drive its animation tick.
+  // Cancel early if the player has been healed out of the defeat state.
   if (defeatOverlay.isActive()) {
-    LifeCounter& victim = (defeatOverlay.player() == 1) ? gameUi.p2() : gameUi.p1();
-    if (!victim.isDefeated()) {
+    if (!gameUi.p().isDefeated()) {
       defeatOverlay.cancel();
-      gameUi.setCountersVisible(true, game.twoPlayer);
+      gameUi.setCounterVisible(true);
     } else {
       defeatOverlay.update(Clock::now());
     }

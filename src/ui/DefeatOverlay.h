@@ -1,8 +1,8 @@
 // DefeatOverlay.h
 //
-// Full-screen "BASE LOST" offline overlay. Triggered when a player's
-// distance-to-defeat hits 0 and remains visible as long as that player
-// is defeated.
+// Full-screen "BASE LOST" offline overlay. Triggered when the player's
+// distance-to-defeat hits 0 and remains visible as long as the player is
+// defeated.
 //
 // Visual language:
 //   _dim       : darkens the screen so the life number disappears under
@@ -11,13 +11,10 @@
 //                counter area.
 //   _pulseOuter/_pulseMid/_pulseInner : subtle red outside-in breathing
 //                pulse while the overlay is active.
-//   _title     : large centered "BASE LOST" (or "Pn BASE LOST" in 2P)
-//                text block.
+//   _title     : large centered "BASE LOST" text block.
 //
-// 1P and 2P: one global centered offline overlay. In 2P the title also
-// identifies which player lost the base. The life counters are hidden
-// by GameUi while this modal is active, so the overlay fully owns the
-// screen instead of stacking over the numbers.
+// The life counter is hidden by GameUi while this modal is active, so
+// the overlay fully owns the screen instead of stacking over the number.
 //
 // Tapping the overlay restarts the game and hides the overlay.
 
@@ -31,16 +28,13 @@ public:
 
   void begin(lv_obj_t* parent, lv_obj_t* shakeTarget);
 
-  // Trigger the offline overlay for `player` (0=P1, 1=P2).
-  void show(int player, bool twoPlayer);
+  // Trigger the offline overlay.
+  void show();
 
   void cancel();
 
   bool isActive() const {
     return _active;
-  }
-  int player() const {
-    return _player;
   }
 
   // Drive the subtle persistent red outside-in pulse. Unlike the old
@@ -59,9 +53,7 @@ private:
   lv_obj_t* _title = nullptr;
 
   bool _active = false;
-  bool _twoPlayer = false;
   uint32_t _startedAt = 0;
-  int _player = 0;
   int _cx = CENTER_X;
   int _cy = CENTER_Y;
 
@@ -69,7 +61,7 @@ private:
   void setTitleText(const char* text);
   void layoutTitleLabel(lv_obj_t* lbl, int xOffset, int yOffset);
   void buildPulseLayer(lv_obj_t*& obj);
-  void layoutForPlayer();
+  void layoutCentered();
   void layoutPulse(lv_obj_t* obj, int w, int h, int radius);
   uint8_t wave(uint32_t elapsed, uint32_t offset, uint8_t maxOpa) const;
   void applyPulse(lv_obj_t* obj, uint8_t bgOpa, uint8_t borderOpa);

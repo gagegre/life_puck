@@ -1,10 +1,10 @@
 // UndoPending.h
 //
-// Swipe-to-arm, hold-centre-to-confirm undo.
+// Swipe-to-arm, hold-centre-to-confirm undo (1P only).
 //
 // Flow:
-//   1. Swipe left/right on a player's half to arm undo for that player.
-//   2. The affected counter dims and shows the restore delta.
+//   1. Swipe left to arm undo.
+//   2. The counter dims and shows the restore delta.
 //   3. Hold the centre until the orange confirmation ring fills.
 //   4. Release early empties the ring; timeout cancels the armed undo.
 
@@ -18,7 +18,7 @@
 class UndoPendingOverlay {
 public:
   void begin(lv_obj_t* parent);
-  void show(int player, bool twoPlayerMode);
+  void show();
   void hide();
   void setProgress(float p);
 
@@ -31,7 +31,6 @@ struct UndoPending {
   static constexpr uint32_t TIMEOUT_MS = 4000;
 
   HoldConfirmation state;
-  int player = 0;  // 0 = P1, 1 = P2
 
   bool active() const {
     return state.active;
@@ -40,9 +39,7 @@ struct UndoPending {
     return state.fingerDown;
   }
 
-  // Arm undo for the given player.
-  void arm(int p) {
-    player = p;
+  void arm() {
     state.arm();
   }
   void cancel() {

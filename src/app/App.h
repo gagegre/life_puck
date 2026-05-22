@@ -27,7 +27,6 @@
 // ---- Persistent (RTC) state ----
 //
 // Held in RTC memory across deep sleep. Cleared on full power-off.
-// Definition is in App.cpp with the RTC_DATA_ATTR attribute.
 extern PersistentState rtcState;
 
 // ---- Singletons ----
@@ -48,33 +47,17 @@ extern TouchRouter touchRouter;
 extern GameState game;
 
 // ---- UI construction ----
-//
-// Build the always-visible game-counter layer (battery arc, flash
-// arcs, life labels, toast/overlay scaffolding) and wire the defeat
-// callback that fires the BASE LOST modal.
 void createGameUI();
-
-// Build the (initially hidden) radial-menu overlay. Done AFTER the
-// first life-counter frame is flushed so a deep-sleep wake never
-// flashes the old menu image.
 void createRadialMenuOverlay();
 
 // ---- Per-tick handlers ----
-//
-// Called from loop(). See App.cpp for behaviour details.
 void handleTouch();
 void handleResetPending();
 void handleUndoPending();
 void handleShake();
 
-// Drains a pending action queued by RadialMenu::fireAction(). Closes
-// the menu first when the action is a sub-view commit, then dispatches
-// the action and persists any related NVS prefs.
 void drainPendingMenuAction();
 
-// Restores the game out of the BASE LOST overlay state.
 void restartFromDefeatOverlay();
 
-// Dispatch one MenuAction. Pulled out of the touch path so other call
-// sites (e.g. drainPendingMenuAction) can also fire actions.
 void executeMenuAction(MenuAction action);

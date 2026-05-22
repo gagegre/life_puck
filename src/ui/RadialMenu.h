@@ -111,7 +111,7 @@ public:
   // Returns and clears any pending action that should fire after the menu.
   MenuAction takePendingAction();
 
-  // After PLAYER_TOGGLE / COUNT_DIRECTION etc. mutate the game flags
+  // After COUNT_DIRECTION etc. mutate the game flags
   // we need to update the top-ring centre and segment icons.
   void onGameStateChanged();
 

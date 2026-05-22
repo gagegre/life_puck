@@ -35,7 +35,7 @@ void showSleepHint() {
   // visual language as the rest of the radial-menu confirmations. For sleep,
   // the toast requests a fully opaque backdrop so the life counter disappears
   // instead of showing through the dim layer.
-  gameUi.setCountersVisible(false, game.twoPlayer);
+  gameUi.setCounterVisible(false);
   modeToast.show(FA_ICON_SLEEP_ZZZ, UiText::SLEEP, COLOR_MENU_BLUE, true);
 
   flushNow();
@@ -53,7 +53,7 @@ void restoreCleanFrameInvisible() {
   if (radialMenu.isOpen()) {
     radialMenu.close();
   } else {
-    gameUi.showAfterMenu(game.twoPlayer);
+    gameUi.showAfterMenu();
   }
 
   flushNow();
@@ -65,13 +65,10 @@ void restoreCleanFrameInvisible() {
 // stamp onto rtcState (which the boot path reads on wake).
 void deepSleep(SleepReason reason) {
   // Store state first, while all objects are still alive and unchanged.
-  rtcState.life = gameUi.p1().getValue();
-  rtcState.life2 = gameUi.p2().getValue();
+  rtcState.life = gameUi.p().getValue();
   rtcState.countUp = game.countUp;
-  rtcState.twoPlayer = game.twoPlayer;
   rtcState.touchLocked = game.touchLocked;
-  rtcState.baseLife1 = gameUi.p1().getBaseLife();
-  rtcState.baseLife2 = gameUi.p2().getBaseLife();
+  rtcState.baseLife = gameUi.p().getBaseLife();
   rtcState.lastSleepReason = reason;
 
   // Show a short explicit confirmation before sleeping so the user knows the

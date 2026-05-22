@@ -34,6 +34,20 @@ public:
     }
   };
 
+  // Separate hold tracker for the "long-press outside centre = reveal OF XY"
+  // gesture. Kept distinct from the centre-hold tracker so the two can never
+  // be armed at the same time: this one resets the instant the finger enters
+  // the centre dead-zone, and the centre tracker resets when the finger is
+  // outside the centre hit circle.
+  struct OutsideHoldState {
+    bool tracking = false;
+    bool fired = false;  // hold already committed; wait for lift before re-arm
+    uint32_t startedAt = 0;
+    void reset() {
+      *this = {};
+    }
+  };
+
   void requestSwallowFirstTouch() {
     _swallowFirstTouch = true;
   }
@@ -104,6 +118,9 @@ public:
       _hold.tracking = true;
     }
     _hold.lastSeenAt = now;
+    // Centre hold and outside hold are mutually exclusive: if the finger is
+    // here, the outside-hold tracker can't be valid.
+    _outsideHold.reset();
   }
 
   void resetHold() {
@@ -116,6 +133,35 @@ public:
 
   void markHoldOpenedMenu() {
     _hold.menuOpened = true;
+  }
+
+  // ---- Outside-centre hold (OF XY reveal) -------------------------------
+  // Armed when the finger stays outside the centre dead-zone for OUTSIDE_HOLD_MS.
+  // Single-shot: once fired, the tracker waits for the next confirmed lift
+  // before it will arm again -- so the same press cannot trigger twice.
+  void trackOutsideHold(uint32_t now) {
+    if (_outsideHold.fired) return;
+    if (!_outsideHold.tracking) {
+      _outsideHold.startedAt = now;
+      _outsideHold.tracking = true;
+    }
+  }
+
+  void resetOutsideHold() {
+    _outsideHold.tracking = false;
+    _outsideHold.startedAt = 0;
+    // Note: do NOT clear `fired` here. It stays set until a confirmed lift,
+    // which happens in onNoSample().
+  }
+
+  bool outsideHoldComplete(uint32_t now) const {
+    return _outsideHold.tracking && !_outsideHold.fired &&
+           (now - _outsideHold.startedAt) >= OUTSIDE_HOLD_MS;
+  }
+
+  void markOutsideHoldFired() {
+    _outsideHold.fired = true;
+    _outsideHold.tracking = false;
   }
 
   void recordAction() {
@@ -139,6 +185,7 @@ public:
 
 private:
   HoldState _hold;
+  OutsideHoldState _outsideHold;
   bool _swallowing = false;
   bool _swallowFirstTouch = false;
   bool _swallowNextGesture = false;

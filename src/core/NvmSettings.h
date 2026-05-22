@@ -7,10 +7,10 @@
 // What lives here vs. what doesn't:
 //   * NVS (this class)     -> survives full power-off. Brightness,
 //                              battery display mode, "show %" toggle,
-//                              base-life values.
+//                              base-life value.
 //   * RTC memory (PersistentState in Config.h) -> survives deep sleep
-//                              only. Runtime game state: life totals,
-//                              count direction, 2P toggle, touch lock.
+//                              only. Runtime game state: life total,
+//                              count direction, touch lock.
 
 #pragma once
 
@@ -49,20 +49,12 @@ public:
     _prefs.putBool("batpct", show);
   }
 
-  int getBaseLife1() const {
-    return _prefs.getInt("blife1", 30);
+  int getBaseLife() const {
+    return _prefs.getInt("blife", 30);
   }
 
-  void setBaseLife1(int v) {
-    _prefs.putInt("blife1", v);
-  }
-
-  int getBaseLife2() const {
-    return _prefs.getInt("blife2", 30);
-  }
-
-  void setBaseLife2(int v) {
-    _prefs.putInt("blife2", v);
+  void setBaseLife(int v) {
+    _prefs.putInt("blife", v);
   }
 
 private:
