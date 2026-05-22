@@ -31,14 +31,28 @@ public:
     return _ok;
   }
 
+  // True exactly once when the puck was still for a while and then moved.
+  bool justWokeFromStill() const {
+    return _justWokeFromStill;
+  }
+
 private:
   bool _ok = false;
+
   float _prevAx = 0.0f;
   float _prevAy = 0.0f;
+  float _prevAz = 1.0f;
+
   uint32_t _lastShakeAt = 0;
   int8_t _lastDirection = 0;
   uint8_t _reversalCount = 0;
   uint32_t _lastReversalAt = 0;
+
+  bool _isStill = false;
+  bool _wasStill = false;
+  bool _justWokeFromStill = false;
+  uint32_t _stillSince = 0;
+  uint32_t _lastTouchRecalAt = 0;
 
   void writeReg(uint8_t reg, uint8_t val);
   bool readAccel(float& x, float& y, float& z);

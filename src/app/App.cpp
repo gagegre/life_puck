@@ -272,8 +272,8 @@ void handleTouch() {
   // ---- 1. Centre-hold opens the radial menu ----
   // Armed confirmation states own the centre hold, so they must not
   // accidentally trigger this.
-  if (!radialMenu.isOpen() && !resetPending.active() && !undoPending.active() &&
-      !defeatOverlay.isActive() && touchRouter.holdComplete(now)) {
+  if (!radialMenu.isOpen() && !resetPending.active() && !undoPending.active() && !defeatOverlay.isActive() &&
+      touchRouter.holdComplete(now)) {
     gameUi.hideBaseReveal();  // can't coexist with the menu
     radialMenu.show();
     touchRouter.markHoldOpenedMenu();
@@ -286,8 +286,8 @@ void handleTouch() {
   // This prevents the gesture from sneaking in during a reset/undo arm or
   // mid-radial-menu interaction. The same swallow handshake the menu uses
   // is applied here so the release does not leak as a SINGLE_TAP.
-  if (!radialMenu.isOpen() && !resetPending.active() && !undoPending.active() &&
-      !defeatOverlay.isActive() && touchRouter.outsideHoldComplete(now)) {
+  if (!radialMenu.isOpen() && !resetPending.active() && !undoPending.active() && !defeatOverlay.isActive() &&
+      touchRouter.outsideHoldComplete(now)) {
     touchRouter.markOutsideHoldFired();
     gameUi.showBaseReveal();
     touchRouter.swallowUntilLift();
@@ -554,16 +554,31 @@ void handleUndoPending() {
 // ==============================================================
 
 void handleShake() {
-  if (!imu.update()) return;
+  const bool didShake = imu.update();
+
+  if (imu.justWokeFromStill()) {
+    Hardware::touch.begin();
+
+    // The movement that recovered touch should not leak into gameplay.
+    touchRouter.requestSwallowFirstTouch();
+    touchRouter.swallowUntilLift();
+    touchRouter.swallowNextGesture();
+
+    backlight.recordActivity();
+  }
+
+  if (!didShake) return;
   if (defeatOverlay.isActive()) return;
   if (radialMenu.isOpen()) return;
+
   if (undoPending.active()) {
     gameUi.clearUndoPending();
     undoPending.cancel();
     undoPendingOverlay.hide();
   }
+
   gameUi.hideBaseReveal();
-  // Enter (or restart) reset-pending; never reset immediately.
+
   resetPending.arm();
   resetPendingOverlay.show();
   backlight.recordActivity();

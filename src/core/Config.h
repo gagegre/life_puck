@@ -297,6 +297,14 @@ constexpr uint32_t SHAKE_COOLDOWN_MS = 3000;
 constexpr uint8_t SHAKE_REVERSALS_REQUIRED = 4;
 constexpr uint32_t SHAKE_WINDOW_MS = 1200;
 
+constexpr float IMU_STILL_MIN_G = 0.94f;
+constexpr float IMU_STILL_MAX_G = 1.06f;
+constexpr float IMU_STILL_DELTA_G = 0.035f;
+constexpr float IMU_WAKE_DELTA_G = 0.075f;
+
+constexpr uint32_t IMU_STILL_REQUIRED_MS = 2500;
+constexpr uint32_t TOUCH_RECAL_COOLDOWN_MS = 3000;
+
 // ==============================================================
 // Battery widget
 // ==============================================================
